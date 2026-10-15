@@ -27,6 +27,7 @@ pi-models default <provider>/<model> [--thinking off|minimal|low|medium|high|xhi
 pi-models thinking <provider>/<model> <level>        # one model's thinking level; --unset removes it
 pi-models enable <pattern>...                # which models pi starts with and cycles through
 pi-models disable <pattern>... | --all
+pi-models budgets --low N --high N ...      # token budgets of the thinking levels; --unset <level> removes one
 pi-models undo [--settings]                 # reverse the last change
 ```
 
