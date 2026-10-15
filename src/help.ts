@@ -1,0 +1,162 @@
+export const MAIN_HELP = `pi-models — edit pi's models.json without opening it
+
+Usage:
+  pi-models <command> [options]
+
+Commands:
+  show    [provider[/model]]        List providers, a provider's model IDs, or one model's entry
+  add     <provider>/<model>        Add a model to a provider
+  update  <provider>/<model>        Change fields on an existing model
+  remove  <provider>/<model>...     Remove one or more models
+  sync    <provider> | --all        Add models the provider's /models endpoint lists
+  undo                              Restore the previous models.json
+
+Global options:
+  --config <path>   models.json to edit
+                    (default: ~/.pi/agent/models.json, honors PI_CODING_AGENT_DIR)
+  --dry-run         Show what would change, write nothing
+  --json            Machine-readable output
+  -h, --help        Show help for a command
+  -v, --version
+
+Every change writes immediately, after saving a backup to models.bak/ (last 20 kept).
+Run \`pi-models undo\` to reverse the last change.
+
+Exit codes: 0 ok · 1 failed (nothing written) · 2 bad usage
+
+Examples:
+  pi-models show opencode-go
+  pi-models add opencode-go/glm-5.3 --copy-from glm-5 --contextWindow 1000000
+  pi-models update opencode-go/glm-5 --maxTokens 128000
+  pi-models remove opencode-go/kimi-k2.5
+  pi-models sync opencode-go
+
+Run \`pi-models <command> --help\` for a command's options.
+`;
+
+const FIELDS = `Fields (names match models.json):
+  --name <text>              Display name
+  --contextWindow <n>        Context size in tokens, a whole number (1000000, not 1M)
+  --maxTokens <n>            Max output tokens
+  --reasoning                Mark as a reasoning model
+  --input <list>             Input types, comma-separated: text,image
+  --cost.input <usd>         Price per 1M input tokens
+  --cost.output <usd>        Price per 1M output tokens
+  --cost.cacheRead <usd>     Price per 1M cache-read tokens
+  --cost.cacheWrite <usd>    Price per 1M cache-write tokens
+
+pi needs all four cost rates together in a model entry. Pass all four when you
+add a cost; once a model has a cost, you can change one rate at a time.`;
+
+export const HELP: Record<string, string> = {
+	show: `pi-models show — read without opening the file
+
+Usage:
+  pi-models show                       Providers: model count, api, base URL
+  pi-models show <provider>            That provider's model IDs
+  pi-models show <provider>/<model>    One model's full entry (JSON)
+
+Examples:
+  pi-models show
+  pi-models show opencode-go
+  pi-models show opencode-go/glm-5
+`,
+	add: `pi-models add — add a model to a provider
+
+Usage:
+  pi-models add <provider>/<model> [options]
+
+Fails if the model already exists (use \`update\`) or the provider is not in
+models.json (providers are created by editing the file, not by this tool).
+
+${FIELDS}
+
+Copying:
+  --copy-from <model>        Start from another model in the same provider.
+                             Copies every field except id and name, including
+                             compat and thinkingLevelMap. The name is the new
+                             model ID unless you pass --name. Fields you pass
+                             override the copy.
+
+Examples:
+  pi-models add opencode-go/glm-5.3 --copy-from glm-5 --contextWindow 1000000
+  pi-models add ark-doubao/doubao-2 --input text,image --contextWindow 256000 --maxTokens 32000
+  pi-models add opencode-go/glm-5.3 --copy-from glm-5 --dry-run
+
+Without --copy-from, only the fields you pass are written. Fields you leave out
+stay unset, and pi applies its own defaults.
+`,
+	update: `pi-models update — change fields on an existing model
+
+Usage:
+  pi-models update <provider>/<model> [options]
+
+Only the fields you pass change; everything else, including compat and
+thinkingLevelMap, is left as it is. Fails if the model does not exist, or if you
+pass nothing to change.
+
+${FIELDS}
+  --no-reasoning             Mark as not a reasoning model
+
+Removing a field:
+  --unset <field>            Remove a top-level field, for example --unset cost
+                             or --unset compat. Repeatable. The id cannot be unset.
+
+Examples:
+  pi-models update opencode-go/glm-5 --contextWindow 1000000
+  pi-models update opencode-go/qwen3.5-plus --cost.input 0.4 --cost.output 1.2
+  pi-models update opencode-go/glm-5 --unset thinkingLevelMap
+`,
+	remove: `pi-models remove — remove models from a provider
+
+Usage:
+  pi-models remove <provider>/<model>...
+
+Removes only the listed models. Nothing else in the provider changes.
+Models that do not exist are reported and skipped (exit 1 if none were removed).
+When a removed model is still your default model or listed in enabledModels in
+settings.json, the command warns. It never edits settings.json.
+
+Examples:
+  pi-models remove opencode-go/kimi-k2.5
+  pi-models remove opencode-go/kimi-k2.5 opencode-go/mimo-v2-pro
+`,
+	sync: `pi-models sync — add models the provider's endpoint serves
+
+Usage:
+  pi-models sync <provider> [options]
+  pi-models sync --all [options]
+
+Reads GET {baseUrl}/models (then {baseUrl}/v1/models). The key is the one pi uses:
+an API key stored in auth.json, else the provider's apiKey in models.json
+(literal, $ENV or !command). Adds IDs missing from the file. Existing models are
+never changed. A new model gets only the fields the endpoint reports; when it
+reports no limits, the output marks the model "needs update".
+
+Options:
+  --prune           Also remove models the endpoint no longer lists
+  --all             Every provider that has a baseUrl and a model list
+  --copy-from <m>   Start each new model from this existing model
+
+With --all, a provider whose endpoint cannot be read is skipped with the reason.
+With one provider, the command fails instead.
+
+Examples:
+  pi-models sync opencode-go
+  pi-models sync opencode-go --prune --dry-run
+  pi-models sync --all
+`,
+	undo: `pi-models undo — restore the previous models.json
+
+Usage:
+  pi-models undo [--list]
+
+Restores the newest backup in models.bak/ and removes it from the list, so running
+undo again steps back one more change.
+  --list            Show the backups, newest first
+
+Examples:
+  pi-models undo
+  pi-models undo --list
+`,
+};

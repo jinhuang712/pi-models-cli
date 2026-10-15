@@ -1,0 +1,9 @@
+# Changelog
+
+## Unreleased
+
+- `pi-models show` lists providers, a provider's model IDs, or one model's entry.
+- `pi-models add`, `update` and `remove` change one model at a time and touch nothing else in the file. `add --copy-from` starts a model from a sibling, and `update --unset` removes a field.
+- `pi-models sync` adds the models a provider's `/models` endpoint serves, and `--prune` removes the ones it no longer serves.
+- Every change saves a backup first (the newest 20 are kept), writes the file in one step, and can be reversed with `pi-models undo`.
+- `--dry-run` previews any command, and `--json` prints machine-readable results with short, specific errors.

@@ -1,0 +1,40 @@
+{
+  "name": "pi-models-cli",
+  "version": "0.0.0",
+  "description": "Edit pi's models.json with small commands, so an agent never has to read or rewrite the file.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "pi-models": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
+    "check": "npm run typecheck && npm run test",
+    "pi-models": "node src/cli.ts",
+    "prepare": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jinhuang712/pi-models-cli.git"
+  },
+  "keywords": [
+    "pi",
+    "pi-coding-agent",
+    "models.json",
+    "cli"
+  ]
+}
