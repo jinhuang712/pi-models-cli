@@ -10,6 +10,7 @@
 - `pi-models enable` and `disable` edit `enabledModels` in `settings.json`; `default`, `thinking` and `budgets` set the default model, the default thinking level, a model's thinking level and the thinking token budgets. `show --settings` prints these, and `undo --settings` reverses the last change to `settings.json`.
 - `sync` and `probe` never follow a redirect, so a key cannot reach another host; error messages never contain a key; and `probe` runs pi in a throwaway folder so it cannot write into your agent folder.
 - The settings commands read and write the `settings.json` next to `models.json` as named, also when `models.json` is a symlink. The first change to a missing `settings.json` can be undone, and a setting of the wrong shape is refused instead of overwritten.
+- `CLI.md` lists every command and option. It is generated from `--help`, and a test fails if it is out of date (`npm run docs` rewrites it).
 - Error messages are easier to act on: an unknown option names the closest real flag and lists the command's options; a switch given a value (`--reasoning false`) points at `--no-reasoning`; `update` with no field lists the fields; a `<placeholder>` copied from the help is refused; and `pi-models --help` shows both forms of `default`.
 - A change made by another process while a command runs makes the command fail instead of overwriting it. CRLF line endings and a BOM are kept, and files with comments are refused rather than stripped.
 - `sync --prune` never removes models based on an empty, paged or partly unreadable list.

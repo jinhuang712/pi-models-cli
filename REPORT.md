@@ -82,6 +82,6 @@ A first round with the original messages gave `gpt-6-luna` 23/30 with the main h
 
 1. G1 timing, and acceptance of G2 to G6.
 2. Binary name (`pi-models` is a working name; `pimodel` is taken on npm).
-3. Public release: GitHub repo, `CONTRIBUTING.md`, `SECURITY.md`, npm package.
+3. Public release: GitHub repo and npm package. `CONTRIBUTING.md` and `SECURITY.md` were dropped by decision; `CLI.md` is written.
 4. The pi skill for agents: a short snippet that teaches the commands. Recommended, not built.
 5. Technical backlog: pattern check for `enable`, `compat` typo detection, paged `/models`, and the rest of [TODO.md](TODO.md).

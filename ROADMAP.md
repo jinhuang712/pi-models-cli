@@ -1,4 +1,4 @@
-<!-- what-we-build: approved 2026-10-15 -->
+<!-- what-we-build: drafted 2026-10-15 -->
 # Roadmap
 
 Where the work stands, as of 2026-10-15. Behavior lives in FEATURES.md and the checks in GOALS.md. A milestone is done only when its exit criteria are measured by someone other than its author.
@@ -10,7 +10,7 @@ Where the work stands, as of 2026-10-15. Behavior lives in FEATURES.md and the c
 | M1 — Edit and sync | F1 to F7 | G1 to G5 met | 🟨 built; tests pass; code reviewed once; goals not yet independently measured |
 | M2 — Probe | F8 | G6 met | 🟨 built; tests pass; code reviewed once; goal not yet independently measured |
 | M3 — Settings | F9, F10 | G2 and G3 met for `settings.json` | 🟨 built; tests pass; code reviewed once; goals not yet independently measured |
-| M4 — Public release | README, CONTRIBUTING.md, SECURITY.md, npm package | A stranger installs it and runs `pi-models show` in under 5 minutes, watched once | ⬜ |
+| M4 — Public release | README, CLI.md, npm package (no CONTRIBUTING.md or SECURITY.md, by decision) | A stranger installs it and runs `pi-models show` in under 5 minutes, watched once | 🟨 CLI.md done; repo, name and npm package open |
 
 ## M1 — Edit and sync
 
@@ -49,5 +49,5 @@ Where the work stands, as of 2026-10-15. Behavior lives in FEATURES.md and the c
 | Task | Status |
 |---|---|
 | Decide the binary name | ⬜ |
-| `CONTRIBUTING.md` and `SECURITY.md` | ⬜ |
+| `CLI.md`, generated from the help texts and checked by a test | ✅ |
 | Publish to npm | ⬜ |

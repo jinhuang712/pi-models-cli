@@ -1,4 +1,4 @@
-<!-- what-we-build: approved 2026-10-15 -->
+<!-- what-we-build: drafted 2026-10-15 -->
 # pi-models-cli
 
 Edit pi's `models.json` with small commands, so an agent never has to read or rewrite the file.
@@ -38,7 +38,7 @@ $ pi-models undo
 | `show --settings` | Print the model keys of `settings.json` |
 | `undo` | Restores the previous file; `undo --settings` does this for `settings.json`. Run it again to step back further |
 
-Every command takes `--dry-run`, `--json` and `--config <path>`; the settings commands also take `--settings-file <path>`. Run `pi-models <command> --help` for the fields and examples. Every write saves a backup to `models.bak/` first and keeps the newest 20. The full contract is in [FEATURES.md](FEATURES.md).
+Every command takes `--dry-run`, `--json` and `--config <path>`; the settings commands also take `--settings-file <path>`. Run `pi-models <command> --help` for the fields and examples, or read [CLI.md](CLI.md), which holds every help text. Every write saves a backup to `models.bak/` first and keeps the newest 20. The full contract is in [FEATURES.md](FEATURES.md).
 
 ## Install
 
@@ -79,6 +79,7 @@ pi-models probe <provider>             # will the entries work?
 
 - [PROPOSAL.md](PROPOSAL.md): why this exists
 - [GOALS.md](GOALS.md): the checks, with numbers
+- [CLI.md](CLI.md): every command and option, generated from `--help`
 - [FEATURES.md](FEATURES.md): what it does and will do
 - [ROADMAP.md](ROADMAP.md): milestones and progress
 - [TODO.md](TODO.md): loose ends

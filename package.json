@@ -21,7 +21,8 @@
     "test": "node --test test/*.test.ts",
     "check": "npm run typecheck && npm run test",
     "pi-models": "node src/cli.ts",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "docs": "node scripts/write-cli-doc.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
