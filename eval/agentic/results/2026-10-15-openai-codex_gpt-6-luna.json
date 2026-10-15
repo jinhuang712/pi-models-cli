@@ -1,0 +1,66 @@
+{
+  "date": "2026-10-15",
+  "model": "openai-codex/gpt-6-luna",
+  "thinking": "medium",
+  "trialsPerTask": 1,
+  "summary": {
+    "plain": {
+      "runs": 1,
+      "success": 1,
+      "openedConfigFiles": 1,
+      "meanToolCalls": 9,
+      "meanTokens": 21493,
+      "meanSeconds": 38,
+      "meanCostUsd": 0.0029
+    },
+    "skill": {
+      "runs": 1,
+      "success": 1,
+      "openedConfigFiles": 0,
+      "meanToolCalls": 3,
+      "meanTokens": 15346,
+      "meanSeconds": 18,
+      "meanCostUsd": 0.0018
+    }
+  },
+  "runs": [
+    {
+      "task": "remove-two",
+      "condition": "plain",
+      "trial": 1,
+      "success": true,
+      "toolCalls": 9,
+      "commands": [
+        "ls -la; rg -n 'kimi-k3|kimi-k2\\.7-code|opencode-go' . --hidden -g '!.git'",
+        "read {\"path\":\"models.json\",\"offset\":220,\"limit\":125}",
+        "read {\"path\":\"models.json\",\"offset\":900,\"limit\":85}",
+        "read {\"path\":\"models.json\",\"offset\":320,\"limit\":300}",
+        "python3 - <<'PY'\nimport json\np=json.load(open('models.json'))\nprint(p.keys())\nfor k,v in p.items():\n if isinstance(v,dict) and 'models' in v:\n  ids=[m.get('id') for m in v['models'] if m.get('id') in ('kimi-k3','kimi-k2.7-code')]\n  if ids: print(k,ids)\nPY",
+        "python3 - <<'PY'\nimport json\np=json.load(open('models.json'))['providers']\nfor k,v in p.items():\n ids=[m.get('id') for m in v.get('models',[]) if m.get('id') in ('kimi-k3','kimi-k2.7-code')]\n if ids: print(k,ids)\nPY",
+        "python3 - <<'PY'\ns=open('models.json').read()\nfor ident in ('kimi-k2.7-code','kimi-k3'):\n i=s.index('\"id\": \"'+ident+'\"', s.index('\"opencode-go\"'))\n a=s.rfind('        {',0,i); b=s.index('\\n        }',i)+len('\\n        }')\n print('\\n---\\n'+s[a:b])\nPY",
+        "edit {\"path\":\"models.json\",\"edits\":[{\"oldText\":\"        {\\n          \\\"id\\\": \\\"kimi-k2.7-code\\\",\\n          \\\"name\\\": \\\"Kimi ",
+        "python3 - <<'PY'\nimport json\np=json.load(open('models.json'))['providers']['opencode-go']['models']\nprint([m['id'] for m in p if m['id'] in ('kimi-k3','kimi-k2.7-code')])\nPY"
+      ],
+      "touchedConfigFiles": true,
+      "tokens": 21493,
+      "costUsd": 0.00289,
+      "seconds": 38
+    },
+    {
+      "task": "remove-two",
+      "condition": "skill",
+      "trial": 1,
+      "success": true,
+      "toolCalls": 3,
+      "commands": [
+        "read {\"path\":\"/var/folders/tf/ks_rz1017v5gkzs4m_39tws80000gn/T/agentic-AAkkcE/skills/pi-models/SKILL.md\",\"offset\":1,\"limit\":2",
+        "pi-models show opencode-go",
+        "pi-models remove opencode-go/kimi-k3 opencode-go/kimi-k2.7-code"
+      ],
+      "touchedConfigFiles": false,
+      "tokens": 15346,
+      "costUsd": 0.00175,
+      "seconds": 18
+    }
+  ]
+}

@@ -9,7 +9,9 @@
   },
   "files": [
     "dist",
+    "skills",
     "README.md",
+    "CLI.md",
     "LICENSE"
   ],
   "engines": {
@@ -37,5 +39,10 @@
     "pi-coding-agent",
     "models.json",
     "cli"
-  ]
+  ],
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  }
 }
