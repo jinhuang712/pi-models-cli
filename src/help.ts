@@ -132,7 +132,9 @@ Usage:
 Removes only the listed models. Nothing else in the provider changes.
 Models that do not exist are reported and skipped (exit 1 if none were removed).
 When a removed model is still your default model or listed in enabledModels in
-settings.json, the command warns. It never edits settings.json.
+settings.json, or its ID is quoted in a file of the extensions/ folder (an extension can
+require a model and fail pi's start-up without it), the command warns. It never edits
+settings.json or an extension.
 
 Examples:
   pi-models remove opencode-go/kimi-k2.5

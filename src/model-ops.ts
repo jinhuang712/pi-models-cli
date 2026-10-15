@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { FailError, UsageError } from "./errors.ts";
 import { type Entry, type Fields, applyFields, describeFields, validateEntry } from "./fields.ts";
 import type { Json } from "./store.ts";
@@ -192,6 +194,31 @@ export function settingsReferences(settings: Json | undefined, ref: ModelRef): s
 	}
 	const levels = settings.modelThinkingLevels;
 	if (typeof levels === "object" && levels !== null && full in levels) found.push("modelThinkingLevels");
+	return found;
+}
+
+/**
+ * Extensions in the agent folder whose source quotes this model ID. An extension can require a model and fail
+ * pi's start-up when it is gone. A heuristic: a quoted ID in the source counts, so a warning can be a false alarm.
+ */
+export function extensionReferences(extensionsDir: string, id: string): string[] {
+	let names: string[];
+	try {
+		names = readdirSync(extensionsDir).filter((n) => /\.(ts|js|mjs)$/.test(n));
+	} catch {
+		return [];
+	}
+	const found: string[] = [];
+	for (const name of names) {
+		try {
+			const path = join(extensionsDir, name);
+			if (statSync(path).size > 1_000_000) continue;
+			const source = readFileSync(path, "utf8");
+			if (source.includes(`"${id}"`) || source.includes(`'${id}'`) || source.includes(`\`${id}\``)) found.push(name);
+		} catch {
+			// An unreadable file is not a reason to fail a removal.
+		}
+	}
 	return found;
 }
 

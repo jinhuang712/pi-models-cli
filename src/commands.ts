@@ -13,6 +13,7 @@ import {
 	parseRef,
 	refText,
 	removeModels,
+	extensionReferences,
 	settingsReferences,
 	summarize,
 	updateModel,
@@ -158,6 +159,10 @@ export function remove(positionals: string[], common: Common, ctx: Context): Rep
 		if (!outcome.changes.some((c) => c.target === refText(ref))) continue;
 		const where = settingsReferences(settings, ref);
 		if (where.length > 0) outcome.warnings.push(`${refText(ref)} is still set in settings.json: ${where.join(", ")}`);
+		const extensions = extensionReferences(join(namedAgentDir(common.config, ctx.env), "extensions"), ref.model);
+		if (extensions.length > 0) {
+			outcome.warnings.push(`${refText(ref)} is named in extensions/${extensions.join(", extensions/")}; an extension that requires it can fail pi's start-up once it is gone`);
+		}
 	}
 	return finish(loaded, outcome, common);
 }

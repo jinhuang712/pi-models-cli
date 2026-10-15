@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { cli, read, readJson, sandbox, write } from "./helpers.ts";
 
 const text = JSON.stringify(
@@ -209,4 +211,18 @@ test("the main help shows both forms of default, so no one copies a placeholder 
 	const r = await cli(sandbox(text));
 	assert.match(r.out, /default --thinking <level> +Set only the default thinking level/);
 	assert.match(r.out, /default <provider>\/<model> \[--thinking <level>\]/);
+});
+
+test("remove warns when an extension quotes the model ID, and never edits it", async () => {
+	const sb = sandbox(text);
+	const extensions = join(sb.dir, "extensions");
+	mkdirSync(extensions);
+	const source = 'const KEEP = { alpha: ["glm-5", "other"] };\n';
+	writeFileSync(join(extensions, "filter.ts"), source);
+	writeFileSync(join(extensions, "notes.txt"), '"org/deep"');
+	const r = await cli(sb, "remove", "alpha/glm-5", "alpha/org/deep");
+	assert.equal(r.code, 0, r.err);
+	assert.match(r.out, /alpha\/glm-5 is named in extensions\/filter.ts; an extension that requires it can fail pi's start-up/);
+	assert.doesNotMatch(r.out, /org\/deep is named in/, "only .ts, .js and .mjs files are read");
+	assert.equal(readFileSync(join(extensions, "filter.ts"), "utf8"), source);
 });
