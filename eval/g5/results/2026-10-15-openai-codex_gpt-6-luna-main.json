@@ -2,6 +2,7 @@
   "date": "2026-10-15",
   "model": "openai-codex/gpt-6-luna",
   "thinking": "medium",
+  "helpMode": "main",
   "trialsPerScenario": 3,
   "scenarios": 10,
   "passed": 30,
@@ -21,7 +22,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 8088
+      "ms": 6336
     },
     {
       "scenario": "typo-model-id",
@@ -36,7 +37,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6599
+      "ms": 6722
     },
     {
       "scenario": "typo-model-id",
@@ -51,7 +52,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6231
+      "ms": 6499
     },
     {
       "scenario": "typo-provider",
@@ -68,7 +69,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6137
+      "ms": 7541
     },
     {
       "scenario": "typo-provider",
@@ -85,7 +86,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6446
+      "ms": 6202
     },
     {
       "scenario": "typo-provider",
@@ -102,7 +103,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6065
+      "ms": 6735
     },
     {
       "scenario": "kebab-flag",
@@ -117,7 +118,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6262
+      "ms": 6904
     },
     {
       "scenario": "kebab-flag",
@@ -132,7 +133,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6104
+      "ms": 6279
     },
     {
       "scenario": "kebab-flag",
@@ -147,7 +148,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 7130
+      "ms": 7058
     },
     {
       "scenario": "add-existing",
@@ -162,7 +163,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6070
+      "ms": 6435
     },
     {
       "scenario": "add-existing",
@@ -177,7 +178,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6284
+      "ms": 5926
     },
     {
       "scenario": "add-existing",
@@ -192,7 +193,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 11029
+      "ms": 6913
     },
     {
       "scenario": "partial-cost",
@@ -213,7 +214,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 5816
+      "ms": 6775
     },
     {
       "scenario": "partial-cost",
@@ -234,7 +235,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6282
+      "ms": 6317
     },
     {
       "scenario": "partial-cost",
@@ -255,7 +256,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6627
+      "ms": 6517
     },
     {
       "scenario": "number-shorthand",
@@ -270,7 +271,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6449
+      "ms": 7521
     },
     {
       "scenario": "number-shorthand",
@@ -285,7 +286,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6293
+      "ms": 7300
     },
     {
       "scenario": "number-shorthand",
@@ -300,7 +301,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6179
+      "ms": 6342
     },
     {
       "scenario": "no-provider-prefix",
@@ -313,7 +314,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6246
+      "ms": 6963
     },
     {
       "scenario": "no-provider-prefix",
@@ -326,7 +327,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6442
+      "ms": 6543
     },
     {
       "scenario": "no-provider-prefix",
@@ -339,7 +340,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6240
+      "ms": 6196
     },
     {
       "scenario": "update-without-field",
@@ -353,7 +354,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6798
+      "ms": 6432
     },
     {
       "scenario": "update-without-field",
@@ -367,7 +368,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 5952
+      "ms": 6854
     },
     {
       "scenario": "update-without-field",
@@ -381,7 +382,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6120
+      "ms": 6215
     },
     {
       "scenario": "bad-thinking-level",
@@ -395,7 +396,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6805
+      "ms": 6970
     },
     {
       "scenario": "bad-thinking-level",
@@ -409,7 +410,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6169
+      "ms": 5852
     },
     {
       "scenario": "bad-thinking-level",
@@ -423,7 +424,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 5903
+      "ms": 6796
     },
     {
       "scenario": "boolean-with-value",
@@ -437,7 +438,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6794
+      "ms": 6029
     },
     {
       "scenario": "boolean-with-value",
@@ -451,7 +452,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 6174
+      "ms": 6112
     },
     {
       "scenario": "boolean-with-value",
@@ -465,7 +466,7 @@
       "exitCode": 0,
       "pass": true,
       "why": "",
-      "ms": 7187
+      "ms": 7526
     }
   ]
 }

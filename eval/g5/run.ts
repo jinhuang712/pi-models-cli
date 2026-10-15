@@ -3,7 +3,9 @@
  * command and the real error, and answers with one corrected command. The command runs on a fresh copy of
  * the fixture and its result is compared with the result of the known-correct command.
  *
- * Usage: node eval/g5/run.ts --agent-dir <pi agent dir with auth.json> [--model openai-codex/gpt-6-luna] [--trials 3]
+ * Usage: node eval/g5/run.ts --agent-dir <pi agent dir with auth.json> [--model openai-codex/gpt-6-luna] [--trials 3] [--help-mode full|main|none]
+ *
+ * Help modes: full = main help and the help of the failing command; main = main help only; none = no help at all.
  */
 import { execFile } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -15,12 +17,14 @@ import { main } from "../../src/main.ts";
 import { SCENARIOS, type Scenario } from "./scenarios.ts";
 
 const run = promisify(execFile);
-const { values } = parseArgs({ options: { "agent-dir": { type: "string" }, model: { type: "string" }, trials: { type: "string" }, thinking: { type: "string" } } });
+const { values } = parseArgs({ options: { "agent-dir": { type: "string" }, model: { type: "string" }, trials: { type: "string" }, thinking: { type: "string" }, "help-mode": { type: "string" } } });
 const agentDir = values["agent-dir"];
 if (!agentDir) throw new Error("--agent-dir is required");
 const model = values.model ?? "openai-codex/gpt-6-luna";
 const trials = Number(values.trials ?? 3);
 const thinking = values.thinking ?? "medium";
+const helpMode = values["help-mode"] ?? "full";
+if (!["full", "main", "none"].includes(helpMode)) throw new Error("--help-mode must be full, main or none");
 const FIXTURE = new URL("../../test/fixtures/models.json", import.meta.url).pathname;
 
 function sandbox(): { dir: string; env: NodeJS.ProcessEnv } {
@@ -78,16 +82,19 @@ function extractCommand(reply: string): { args?: string[]; why?: string } {
 
 function prompt(s: Scenario, failedOutput: string): string {
 	const command = s.mistaken[0] as string;
+	const help =
+		helpMode === "none"
+			? []
+			: [
+					"Its help text:",
+					"",
+					MAIN_HELP,
+					...(helpMode === "full" ? [`The help text of \`pi-models ${command}\`:`, "", HELP[command] ?? "", ""] : []),
+				];
 	return [
 		"You operate the `pi-models` command-line tool, which edits the model configuration of the pi coding agent.",
 		"",
-		"Its help text:",
-		"",
-		MAIN_HELP,
-		`The help text of \`pi-models ${command}\`:`,
-		"",
-		HELP[command] ?? "",
-		"",
+		...help,
 		`Task: ${s.task}`,
 		"",
 		"You ran this command, and it failed:",
@@ -106,7 +113,20 @@ function prompt(s: Scenario, failedOutput: string): string {
 	].join("\n");
 }
 
+/** An empty reply is the provider's fault, not the model's: try again, then give up. */
 async function ask(text: string): Promise<{ reply: string; ms: number }> {
+	let lastError: unknown;
+	for (let attempt = 1; attempt <= 3; attempt++) {
+		try {
+			return await askOnce(text);
+		} catch (error) {
+			lastError = error;
+		}
+	}
+	throw lastError;
+}
+
+async function askOnce(text: string): Promise<{ reply: string; ms: number }> {
 	const started = Date.now();
 	const child = execFile(
 		"pi",
@@ -115,11 +135,15 @@ async function ask(text: string): Promise<{ reply: string; ms: number }> {
 	);
 	child.stdin?.end();
 	let stdout = "";
+	let stderr = "";
 	child.stdout?.on("data", (d) => (stdout += d));
+	child.stderr?.on("data", (d) => (stderr += d));
 	await new Promise<void>((resolve, reject) => {
 		child.on("error", reject);
 		child.on("close", () => resolve());
 	});
+	// An empty reply is a broken run (no login, no quota, a model that does not answer), not a model mistake.
+	if (stdout.trim() === "") throw new Error(`the model returned nothing, so this run is invalid. pi said: ${stderr.trim().slice(0, 400) || "(nothing)"}`);
 	return { reply: stdout.trim(), ms: Date.now() - started };
 }
 
@@ -160,9 +184,9 @@ for (const s of SCENARIOS) {
 }
 
 const passed = results.filter((r) => r.pass).length;
-const summary = { date: new Date().toISOString().slice(0, 10), model, thinking, trialsPerScenario: trials, scenarios: SCENARIOS.length, passed, total: results.length, rate: Number((passed / results.length).toFixed(3)), results };
+const summary = { date: new Date().toISOString().slice(0, 10), model, thinking, helpMode, trialsPerScenario: trials, scenarios: SCENARIOS.length, passed, total: results.length, rate: Number((passed / results.length).toFixed(3)), results };
 const dir = join(new URL("./results", import.meta.url).pathname);
 mkdirSync(dir, { recursive: true });
-const file = join(dir, `${summary.date}-${model.replace(/\//g, "_")}.json`);
+const file = join(dir, `${summary.date}-${model.replace(/\//g, "_")}-${helpMode}.json`);
 writeFileSync(file, `${JSON.stringify(summary, null, 2)}\n`);
 console.log(`\n${passed}/${results.length} fixed in one retry (${(summary.rate * 100).toFixed(1)}%). Written to ${file}`);

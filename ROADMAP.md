@@ -18,11 +18,11 @@ Where the work stands, as of 2026-10-15. Behavior lives in FEATURES.md and the c
 |---|---|
 | `show`, `add`, `update`, `remove`, `sync`, `undo`, with `--dry-run` and `--json` | ✅ |
 | Backups, atomic write, newest 20 kept | ✅ |
-| Tests for G2, G3 and G4 on a secret-free copy of the real `models.json` (91 tests, passing 2026-10-15) | ✅ |
+| Tests for G2, G3 and G4 on a secret-free copy of the real `models.json` (97 tests, passing 2026-10-15) | ✅ |
 | `sync --dry-run` run against the real `opencode-go` and `opencode-zen` endpoints | ✅ |
 | Independent review of the code and tests: 9 defects found, all fixed, 5 weak tests replaced and checked by mutation (2026-10-15) | ✅ |
 | G1: time one real release-day update, by session and by CLI | ⬜ |
-| G5: run the scripted mistakes with `openai-codex/gpt-6-luna`: 30 of 30 fixed in one retry, 10 mistakes × 3 trials, thinking `medium`, 2026-10-15 (`eval/g5/`). Run by the author of the CLI, so GOALS.md keeps G5 open until you accept it | ✅ |
+| G5: run the scripted mistakes (`eval/g5/`, 2026-10-15): 150 of 150 corrected commands right across `gpt-6-luna` (full, main, no help) and `deepseek-v4.1-flash` (full, no help), 10 mistakes × 3 trials each. A first round, before four message fixes, gave `gpt-6-luna` 23/30 and 25/30 with less help. Run by the author of the CLI, so GOALS.md keeps G5 open until you accept it | ✅ |
 | Use it on a real model release | ⬜ |
 
 ## M2 — Probe

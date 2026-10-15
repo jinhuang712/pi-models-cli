@@ -4,7 +4,7 @@ import { type Common, type Context, type Report, add, budgets, disable, enable, 
 import { FailError, UsageError } from "./errors.ts";
 import { FIELD_OPTIONS } from "./fields.ts";
 import { HELP, MAIN_HELP } from "./help.ts";
-import { didYouMean } from "./suggest.ts";
+import { closest, didYouMean } from "./suggest.ts";
 
 const GLOBAL = {
 	config: { type: "string" },
@@ -96,7 +96,25 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv, io: Io): Prom
 				strict: true,
 			});
 		} catch (error) {
-			throw new UsageError(`${error instanceof Error ? error.message : String(error)}. Run \`pi-models ${first} --help\``);
+			const text = error instanceof Error ? error.message : String(error);
+			const unknown = /Unknown option '--?([\w.-]+)'/.exec(text)?.[1];
+			if (unknown !== undefined) {
+				const flags = Object.keys({ ...GLOBAL, ...(COMMAND_OPTIONS[first] as Spec) }).filter((f) => f !== "version");
+				const norm = (s: string) => s.toLowerCase().replace(/[-_.]/g, "");
+				const byNorm = new Map(flags.map((f) => [norm(f), f]));
+				const hit = byNorm.get(norm(unknown)) ?? byNorm.get(closest(norm(unknown), [...byNorm.keys()]) ?? "");
+				throw new UsageError(
+					`unknown option '--${unknown}'${hit ? `; did you mean --${hit}?` : ""}. Options of ${first}: ${flags.map((f) => `--${f}`).join(" ")}. Run \`pi-models ${first} --help\``,
+				);
+			}
+			const flag = /Option '--([\w.-]+)' does not take an argument/.exec(text)?.[1];
+			const hint =
+				flag === "reasoning"
+					? ". --reasoning is a switch with no value: pass --reasoning to turn it on, or --no-reasoning to turn it off"
+					: flag
+						? `. --${flag} is a switch with no value: pass it alone`
+						: "";
+			throw new UsageError(`${text}${hint}. Run \`pi-models ${first} --help\``);
 		}
 		if (parsed.values.help === true) {
 			io.out(HELP[first] as string);

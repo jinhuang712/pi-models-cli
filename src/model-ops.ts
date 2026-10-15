@@ -15,6 +15,9 @@ export function parseRef(text: string): ModelRef {
 		throw new UsageError(`'${text}' must look like <provider>/<model>, for example opencode-go/glm-5`);
 	}
 	const model = text.slice(slash + 1);
+	if (/[<>]/.test(text)) {
+		throw new UsageError(`'${text}' still has <placeholder> text; use a real provider and model, for example opencode-go/glm-5`);
+	}
 	if (model !== model.trim()) throw new UsageError(`the model ID in '${text}' must not start or end with a space`);
 	return { provider: text.slice(0, slash), model };
 }

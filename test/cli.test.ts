@@ -149,3 +149,64 @@ test("providers with only overrides can still be listed", async () => {
 	const sb = sandbox(text);
 	assert.match((await cli(sb, "show", "overridesOnly")).out, /0 models/);
 });
+
+// Found by running a weak model against the error messages (eval/g5).
+test("a boolean flag written with a value gets a hint that names the right flag", async () => {
+	const sb = sandbox(text);
+	for (const args of [
+		["update", "alpha/glm-5", "--reasoning", "false"],
+		["update", "alpha/glm-5", "--reasoning=false"],
+		["update", "alpha/glm-5", "reasoning=false"],
+		["add", "alpha/n1", "reasoning=true"],
+	]) {
+		const r = await cli(sb, ...args);
+		assert.equal(r.code, 2, args.join(" "));
+		assert.match(r.err, /--no-reasoning/, args.join(" "));
+	}
+	const switchValue = await cli(sb, "sync", "alpha", "--prune=yes");
+	assert.equal(switchValue.code, 2);
+	assert.match(switchValue.err, /--prune is a switch with no value/);
+});
+
+test("update with no field lists the fields and gives an example", async () => {
+	const r = await cli(sandbox(text), "update", "alpha/glm-5");
+	assert.equal(r.code, 2);
+	assert.match(r.err, /--reasoning or --no-reasoning/);
+	assert.match(r.err, /--cost\.<input\|output\|cacheRead\|cacheWrite>/);
+	assert.match(r.err, /For example: pi-models update/);
+});
+
+test("a <placeholder> copied from the help is refused", async () => {
+	const sb = sandbox(text);
+	for (const args of [["default", "<provider>/<model>", "--thinking", "high"], ["add", "<provider>/<model>"], ["remove", "alpha/<model>"]]) {
+		const r = await cli(sb, ...args);
+		assert.equal(r.code, 2, args.join(" "));
+		assert.match(r.err, /still has <placeholder> text/);
+	}
+});
+
+test("an unknown option names the closest real one and lists the options of the command", async () => {
+	const sb = sandbox(text);
+	for (const [bad, expected] of [["--context-window", "--contextWindow"], ["--context", "--contextWindow"], ["--maxtokens", "--maxTokens"], ["--max_tokens", "--maxTokens"], ["--cost-input", "--cost.input"]] as const) {
+		const r = await cli(sb, "add", "alpha/n1", bad, "5");
+		assert.equal(r.code, 2, bad);
+		assert.match(r.err, new RegExp(`did you mean ${expected.replace(/[.]/g, "\\.")}\\?`), bad);
+		assert.match(r.err, /Options of add: .*--contextWindow/, bad);
+	}
+	const none = await cli(sb, "add", "alpha/n1", "--zzzzzz", "5");
+	assert.doesNotMatch(none.err, /did you mean/);
+	assert.match(none.err, /Options of add:/);
+});
+
+test("default with a placeholder and --thinking points at the thinking-only form", async () => {
+	const r = await cli(sandbox(text), "default", "<provider>/<model>", "--thinking", "high");
+	assert.equal(r.code, 2);
+	assert.match(r.err, /still has <placeholder> text/);
+	assert.match(r.err, /pi-models default --thinking high/);
+});
+
+test("the main help shows both forms of default, so no one copies a placeholder to change only the level", async () => {
+	const r = await cli(sandbox(text));
+	assert.match(r.out, /default --thinking <level> +Set only the default thinking level/);
+	assert.match(r.out, /default <provider>\/<model> \[--thinking <level>\]/);
+});

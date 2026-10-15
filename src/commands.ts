@@ -112,9 +112,19 @@ export function show(positionals: string[], values: Values, common: Common, ctx:
 	return { lines: [`${target}  ${ids.length} models`, ids.join("  ")], json: { ok: true, provider: target, models: ids } };
 }
 
+/** The message for extra words after <provider>/<model>. A word like `false` or `reasoning=false` is a field written the wrong way. */
+function extraArgs(command: string, rest: string[]): UsageError {
+	const fieldLike = rest.some((word) => /^(true|false|yes|no|on|off)$/i.test(word) || /^[\w.-]+=/.test(word));
+	const hint = fieldLike
+		? ". Fields are flags, not words: --reasoning or --no-reasoning (no value), --contextWindow <n>, --maxTokens <n>, --name <text>, --input <list>, --cost.<rate> <usd>"
+		: "";
+	return new UsageError(`${command} takes one argument, <provider>/<model>, but also got: ${rest.join(" ")}${hint}. Run \`pi-models ${command} --help\``);
+}
+
 export function add(positionals: string[], values: Values, common: Common, ctx: Context): Report {
 	const [target, ...rest] = positionals;
-	if (target === undefined || rest.length > 0) throw new UsageError("add takes one argument: <provider>/<model>");
+	if (target === undefined) throw new UsageError("add takes one argument: <provider>/<model>");
+	if (rest.length > 0) throw extraArgs("add", rest);
 	const copyFrom = typeof values["copy-from"] === "string" ? values["copy-from"] : undefined;
 	const loaded = open(common, ctx);
 	return finish(loaded, addModel(loaded.config, parseRef(target), parseFields(values), copyFrom), common);
@@ -122,11 +132,14 @@ export function add(positionals: string[], values: Values, common: Common, ctx: 
 
 export function update(positionals: string[], values: Values, common: Common, ctx: Context): Report {
 	const [target, ...rest] = positionals;
-	if (target === undefined || rest.length > 0) throw new UsageError("update takes one argument: <provider>/<model>");
+	if (target === undefined) throw new UsageError("update takes one argument: <provider>/<model>");
+	if (rest.length > 0) throw extraArgs("update", rest);
 	const fields = parseFields(values);
 	const unset = Array.isArray(values.unset) ? (values.unset as string[]) : [];
 	if (!hasFields(fields) && unset.length === 0) {
-		throw new UsageError("update needs at least one field to change, for example --contextWindow 1000000, or --unset <field>");
+		throw new UsageError(
+			"update needs at least one field to change: --name, --contextWindow, --maxTokens, --reasoning or --no-reasoning, --input, --cost.<input|output|cacheRead|cacheWrite>, or --unset <field>. For example: pi-models update <provider>/<model> --no-reasoning",
+		);
 	}
 	const loaded = open(common, ctx);
 	return finish(loaded, updateModel(loaded.config, parseRef(target), fields, unset), common);
@@ -250,7 +263,15 @@ export function disable(positionals: string[], values: Values, common: Common, c
 export function setDefaults(positionals: string[], values: Values, common: Common, ctx: Context): Report {
 	if (positionals.length > 1) throw new UsageError("default takes at most one argument: <provider>/<model>");
 	const thinking = typeof values.thinking === "string" ? checkLevel(values.thinking, "--thinking") : undefined;
-	const ref = positionals[0] === undefined ? undefined : parseRef(positionals[0]);
+	let ref: ReturnType<typeof parseRef> | undefined;
+	try {
+		ref = positionals[0] === undefined ? undefined : parseRef(positionals[0]);
+	} catch (error) {
+		if (error instanceof UsageError && thinking !== undefined && /placeholder/.test(error.message)) {
+			throw new UsageError(`${error.message}. To change only the thinking level, leave the model out: pi-models default --thinking ${thinking}`);
+		}
+		throw error;
+	}
 	if (ref === undefined && thinking === undefined) {
 		throw new UsageError("default needs a <provider>/<model>, or --thinking <level>, or both. To read the defaults, run `pi-models show --settings`");
 	}

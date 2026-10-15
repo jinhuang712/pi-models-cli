@@ -1,0 +1,472 @@
+{
+  "date": "2026-10-15",
+  "model": "aliyun-workspace/deepseek-v4.1-flash",
+  "thinking": "medium",
+  "helpMode": "none",
+  "trialsPerScenario": 3,
+  "scenarios": 10,
+  "passed": 30,
+  "total": 30,
+  "rate": 1,
+  "results": [
+    {
+      "scenario": "typo-model-id",
+      "trial": 1,
+      "reply": "pi-models update opencode-go/glm-5.3-flash --contextWindow 1000000",
+      "command": [
+        "update",
+        "opencode-go/glm-5.3-flash",
+        "--contextWindow",
+        "1000000"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 2669
+    },
+    {
+      "scenario": "typo-model-id",
+      "trial": 2,
+      "reply": "pi-models update opencode-go/glm-5.3-flash --contextWindow 1000000",
+      "command": [
+        "update",
+        "opencode-go/glm-5.3-flash",
+        "--contextWindow",
+        "1000000"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 2111
+    },
+    {
+      "scenario": "typo-model-id",
+      "trial": 3,
+      "reply": "pi-models update opencode-go/glm-5.3-flash --contextWindow 1000000",
+      "command": [
+        "update",
+        "opencode-go/glm-5.3-flash",
+        "--contextWindow",
+        "1000000"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 2315
+    },
+    {
+      "scenario": "typo-provider",
+      "trial": 1,
+      "reply": "`pi-models add opencode-go/hy5 --contextWindow 256000 --maxTokens 32000`",
+      "command": [
+        "add",
+        "opencode-go/hy5",
+        "--contextWindow",
+        "256000",
+        "--maxTokens",
+        "32000"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 3219
+    },
+    {
+      "scenario": "typo-provider",
+      "trial": 2,
+      "reply": "pi-models add opencode-go/hy5 --contextWindow 256000 --maxTokens 32000",
+      "command": [
+        "add",
+        "opencode-go/hy5",
+        "--contextWindow",
+        "256000",
+        "--maxTokens",
+        "32000"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 2472
+    },
+    {
+      "scenario": "typo-provider",
+      "trial": 3,
+      "reply": "pi-models add opencode-go/hy5 --contextWindow 256000 --maxTokens 32000",
+      "command": [
+        "add",
+        "opencode-go/hy5",
+        "--contextWindow",
+        "256000",
+        "--maxTokens",
+        "32000"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 3148
+    },
+    {
+      "scenario": "kebab-flag",
+      "trial": 1,
+      "reply": "pi-models add opencode-go/hy5 --contextWindow 256000",
+      "command": [
+        "add",
+        "opencode-go/hy5",
+        "--contextWindow",
+        "256000"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 1572
+    },
+    {
+      "scenario": "kebab-flag",
+      "trial": 2,
+      "reply": "pi-models add opencode-go/hy5 --contextWindow 256000",
+      "command": [
+        "add",
+        "opencode-go/hy5",
+        "--contextWindow",
+        "256000"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 4741
+    },
+    {
+      "scenario": "kebab-flag",
+      "trial": 3,
+      "reply": "pi-models add opencode-go/hy5 --contextWindow 256000",
+      "command": [
+        "add",
+        "opencode-go/hy5",
+        "--contextWindow",
+        "256000"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 2833
+    },
+    {
+      "scenario": "add-existing",
+      "trial": 1,
+      "reply": "pi-models update opencode-go/glm-5.3 --maxTokens 65536",
+      "command": [
+        "update",
+        "opencode-go/glm-5.3",
+        "--maxTokens",
+        "65536"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 3896
+    },
+    {
+      "scenario": "add-existing",
+      "trial": 2,
+      "reply": "pi-models update opencode-go/glm-5.3 --maxTokens 65536",
+      "command": [
+        "update",
+        "opencode-go/glm-5.3",
+        "--maxTokens",
+        "65536"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 3028
+    },
+    {
+      "scenario": "add-existing",
+      "trial": 3,
+      "reply": "pi-models update opencode-go/glm-5.3 --maxTokens 65536",
+      "command": [
+        "update",
+        "opencode-go/glm-5.3",
+        "--maxTokens",
+        "65536"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 5481
+    },
+    {
+      "scenario": "partial-cost",
+      "trial": 1,
+      "reply": "pi-models add opencode-go/hy5 --cost.input 0.4 --cost.output 1.2 --cost.cacheRead 0 --cost.cacheWrite 0",
+      "command": [
+        "add",
+        "opencode-go/hy5",
+        "--cost.input",
+        "0.4",
+        "--cost.output",
+        "1.2",
+        "--cost.cacheRead",
+        "0",
+        "--cost.cacheWrite",
+        "0"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 1962
+    },
+    {
+      "scenario": "partial-cost",
+      "trial": 2,
+      "reply": "pi-models add opencode-go/hy5 --cost.input 0.4 --cost.output 1.2 --cost.cacheRead 0 --cost.cacheWrite 0",
+      "command": [
+        "add",
+        "opencode-go/hy5",
+        "--cost.input",
+        "0.4",
+        "--cost.output",
+        "1.2",
+        "--cost.cacheRead",
+        "0",
+        "--cost.cacheWrite",
+        "0"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 2133
+    },
+    {
+      "scenario": "partial-cost",
+      "trial": 3,
+      "reply": "pi-models add opencode-go/hy5 --cost.input 0.4 --cost.output 1.2 --cost.cacheRead 0 --cost.cacheWrite 0",
+      "command": [
+        "add",
+        "opencode-go/hy5",
+        "--cost.input",
+        "0.4",
+        "--cost.output",
+        "1.2",
+        "--cost.cacheRead",
+        "0",
+        "--cost.cacheWrite",
+        "0"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 2149
+    },
+    {
+      "scenario": "number-shorthand",
+      "trial": 1,
+      "reply": "pi-models update opencode-go/glm-5.3-flash --contextWindow 1000000",
+      "command": [
+        "update",
+        "opencode-go/glm-5.3-flash",
+        "--contextWindow",
+        "1000000"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 2104
+    },
+    {
+      "scenario": "number-shorthand",
+      "trial": 2,
+      "reply": "pi-models update opencode-go/glm-5.3-flash --contextWindow 1000000",
+      "command": [
+        "update",
+        "opencode-go/glm-5.3-flash",
+        "--contextWindow",
+        "1000000"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 2271
+    },
+    {
+      "scenario": "number-shorthand",
+      "trial": 3,
+      "reply": "pi-models update opencode-go/glm-5.3-flash --contextWindow 1000000",
+      "command": [
+        "update",
+        "opencode-go/glm-5.3-flash",
+        "--contextWindow",
+        "1000000"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 2318
+    },
+    {
+      "scenario": "no-provider-prefix",
+      "trial": 1,
+      "reply": "pi-models remove opencode-go/kimi-k3",
+      "command": [
+        "remove",
+        "opencode-go/kimi-k3"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 1854
+    },
+    {
+      "scenario": "no-provider-prefix",
+      "trial": 2,
+      "reply": "pi-models remove opencode-go/kimi-k3",
+      "command": [
+        "remove",
+        "opencode-go/kimi-k3"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 1681
+    },
+    {
+      "scenario": "no-provider-prefix",
+      "trial": 3,
+      "reply": "pi-models remove opencode-go/kimi-k3",
+      "command": [
+        "remove",
+        "opencode-go/kimi-k3"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 2249
+    },
+    {
+      "scenario": "update-without-field",
+      "trial": 1,
+      "reply": "pi-models update opencode-go/glm-5.3 --no-reasoning",
+      "command": [
+        "update",
+        "opencode-go/glm-5.3",
+        "--no-reasoning"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 2286
+    },
+    {
+      "scenario": "update-without-field",
+      "trial": 2,
+      "reply": "pi-models update opencode-go/glm-5.3 --no-reasoning",
+      "command": [
+        "update",
+        "opencode-go/glm-5.3",
+        "--no-reasoning"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 1678
+    },
+    {
+      "scenario": "update-without-field",
+      "trial": 3,
+      "reply": "pi-models update opencode-go/glm-5.3 --no-reasoning",
+      "command": [
+        "update",
+        "opencode-go/glm-5.3",
+        "--no-reasoning"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 5077
+    },
+    {
+      "scenario": "bad-thinking-level",
+      "trial": 1,
+      "reply": "pi-models default --thinking high",
+      "command": [
+        "default",
+        "--thinking",
+        "high"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 2088
+    },
+    {
+      "scenario": "bad-thinking-level",
+      "trial": 2,
+      "reply": "pi-models default --thinking high",
+      "command": [
+        "default",
+        "--thinking",
+        "high"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 1976
+    },
+    {
+      "scenario": "bad-thinking-level",
+      "trial": 3,
+      "reply": "pi-models default --thinking high",
+      "command": [
+        "default",
+        "--thinking",
+        "high"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 1865
+    },
+    {
+      "scenario": "boolean-with-value",
+      "trial": 1,
+      "reply": "pi-models update opencode-go/glm-5.3-flash --no-reasoning",
+      "command": [
+        "update",
+        "opencode-go/glm-5.3-flash",
+        "--no-reasoning"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 3322
+    },
+    {
+      "scenario": "boolean-with-value",
+      "trial": 2,
+      "reply": "pi-models update opencode-go/glm-5.3-flash --no-reasoning",
+      "command": [
+        "update",
+        "opencode-go/glm-5.3-flash",
+        "--no-reasoning"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 2895
+    },
+    {
+      "scenario": "boolean-with-value",
+      "trial": 3,
+      "reply": "pi-models update opencode-go/glm-5.3-flash --no-reasoning",
+      "command": [
+        "update",
+        "opencode-go/glm-5.3-flash",
+        "--no-reasoning"
+      ],
+      "exitCode": 0,
+      "pass": true,
+      "why": "",
+      "ms": 2139
+    }
+  ]
+}

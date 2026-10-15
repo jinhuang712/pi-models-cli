@@ -14,7 +14,8 @@ Commands:
 Settings commands (they edit settings.json next to models.json):
   enable  <pattern>...              Add patterns to enabledModels (the models pi starts with and cycles)
   disable <pattern>... | --all      Remove patterns, or clear the filter
-  default <provider>/<model>        Set the default model; --thinking <level> sets the default level
+  default <provider>/<model> [--thinking <level>]   Set the default model, and optionally the level
+  default --thinking <level>        Set only the default thinking level (no model)
   thinking <provider>/<model> <level>   Set one model's default thinking level
   budgets --low <n> ...             Set the token budgets of the thinking levels
 
