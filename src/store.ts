@@ -39,9 +39,23 @@ export interface Loaded {
 	bom: boolean;
 	/** True when writing the unchanged config back would give the same text. */
 	canonical: boolean;
+	/** False for a settings file that does not exist yet; the first write creates it. */
+	exists: boolean;
 }
 
 export function loadConfig(path: string): Loaded {
+	return loadJsonFile(path, { requireProviders: true });
+}
+
+/** Load a settings file. A missing file reads as an empty object, and the first write creates it. */
+export function loadSettings(path: string): Loaded {
+	if (!existsSync(path)) {
+		return { path, raw: "", config: {}, eol: "\n", bom: false, canonical: true, exists: false };
+	}
+	return loadJsonFile(path, { requireProviders: false });
+}
+
+function loadJsonFile(path: string, options: { requireProviders: boolean }): Loaded {
 	if (!existsSync(path)) throw new FailError(`${path} does not exist`);
 	const raw = readFileSync(path, "utf8");
 	const bom = raw.startsWith("\uFEFF");
@@ -59,10 +73,10 @@ export function loadConfig(path: string): Loaded {
 		throw new FailError(`${path} must hold a JSON object`);
 	}
 	const providers = (config as Json).providers;
-	if (typeof providers !== "object" || providers === null || Array.isArray(providers)) {
+	if (options.requireProviders && (typeof providers !== "object" || providers === null || Array.isArray(providers))) {
 		throw new FailError(`${path} has no "providers" object`);
 	}
-	const loaded: Loaded = { path, raw, config: config as Json, eol: body.includes("\r\n") ? "\r\n" : "\n", bom, canonical: true };
+	const loaded: Loaded = { path, raw, config: config as Json, eol: body.includes("\r\n") ? "\r\n" : "\n", bom, canonical: true, exists: true };
 	loaded.canonical = render(loaded, loaded.config) === raw;
 	return loaded;
 }
@@ -121,17 +135,23 @@ export function writeAtomic(path: string, text: string): void {
 }
 
 export interface Written {
+	/** The backup file, or "" when the file did not exist yet. */
 	backup: string;
 }
 
 /** Save a backup of the current file, then write the new text. Keeps the newest BACKUPS_KEPT backups. */
 export function commit(loaded: Loaded, next: Json, now: Date = new Date()): Written {
 	const dir = backupDir(loaded.path);
-	mkdirSync(dir, { recursive: true, mode: 0o700 });
 	// Another process may have changed the file since this command read it; never overwrite that change.
-	if (readFileSync(loaded.path, "utf8") !== loaded.raw) {
+	const changed = loaded.exists ? !existsSync(loaded.path) || readFileSync(loaded.path, "utf8") !== loaded.raw : existsSync(loaded.path);
+	if (changed) {
 		throw new FailError(`${loaded.path} changed while this command ran; nothing was written. Run the command again`);
 	}
+	if (!loaded.exists) {
+		writeAtomic(loaded.path, render(loaded, next));
+		return { backup: "" };
+	}
+	mkdirSync(dir, { recursive: true, mode: 0o700 });
 	// A sequence number after the time keeps names unique and sorted when two backups share a millisecond.
 	let backup = "";
 	for (let n = 0; ; n++) {

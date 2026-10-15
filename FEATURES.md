@@ -3,7 +3,7 @@
 
 ✅ built · 🚧 built with a gap · ⬜ planned
 
-F1 to F8 are built. F9 and F10 are phase 2, and their command names can still change. F1 to F7 edit `models.json`; F8 only reads.
+F1 to F10 are built. F1 to F7 edit `models.json`, F8 only reads, and F9 and F10 edit `settings.json`.
 
 All commands act on pi's `models.json` in the agent directory (`~/.pi/agent`, or the directory in `PI_CODING_AGENT_DIR`). Options for every command:
 
@@ -119,22 +119,37 @@ Settings: none.
 
 Settings: none.
 
-## F9 — Model filters ⬜
+## F9 — Model filters ✅
 
-`pi-models enable <pattern>...` and `pi-models disable <pattern>...` edit `enabledModels` in `settings.json`, the list of models pi starts with and cycles through with Ctrl+P. Patterns use the same format as pi's `--models` option. The `settings.json` file gets the same backup, safe write and `undo` as F6.
+`pi-models enable <pattern>...` and `pi-models disable <pattern>...` edit `enabledModels` in `settings.json`, the list of models pi starts with and cycles through with Ctrl+P. Patterns use the same format as pi's `--models` option, such as `sonnet`, `opencode-go/*` or `sonnet:high`.
 
-Settings: none.
+- When `enabledModels` is not set, pi offers every model. The first `enable` sets the list, so pi then offers only the models those patterns match. The command warns when it does this and names the way back.
+- A pattern already in the list is reported and skipped.
+- `disable` removes the exact patterns you name. A pattern that is not in the list is reported, with a suggestion.
+- When `disable` empties the list, the setting is removed, so pi offers every model again. An empty list is never written.
+- `disable --all` removes the setting at once.
+- The commands do not check a pattern against pi's matching rules. A pattern that matches nothing is accepted.
 
-## F10 — Defaults ⬜
+The `settings.json` file gets the same backup, safe write and `undo` as F6. A settings file that does not exist yet is created by the first change, and that first change makes no backup. `undo --settings` reverses the last change to `settings.json`, and `show --settings` prints its model keys.
+
+Settings: none. `--settings-file <path>` points the commands at another settings file, such as a project's `.pi/settings.json`.
+
+## F10 — Defaults ✅
 
 Commands set which model pi starts with and how hard it thinks, in `settings.json`:
 
-- the default provider and model
-- the default thinking level, from `off` to `max`
-- a thinking level for one model, keyed by `provider/modelId`
-- the token budgets for the `minimal`, `low`, `medium` and `high` thinking levels
+| Command | Writes |
+|---|---|
+| `pi-models default <provider>/<model> [--thinking <level>]` | `defaultProvider` and `defaultModel`, and `defaultThinkingLevel` with `--thinking` |
+| `pi-models default --thinking <level>` | `defaultThinkingLevel` only |
+| `pi-models thinking <provider>/<model> <level>` | `modelThinkingLevels` for that model; `--unset` removes the entry |
+| `pi-models budgets --minimal/--low/--medium/--high <n>` | `thinkingBudgets`; `--unset <level>` removes one |
 
-The same backup, safe write and `undo` as F6 apply. These commands do not change display or cache settings.
+- Levels are `off`, `minimal`, `low`, `medium`, `high`, `xhigh` and `max`. Budgets are whole numbers of tokens.
+- A model that is not in `models.json` is still set, with a warning and a suggestion, because it can be a built-in pi model.
+- A command that would change nothing says so and writes nothing.
+- The last `--unset` of a map removes the whole setting.
+- The same backup, safe write and `undo --settings` as F9 apply. These commands do not change display or cache settings.
 
 Settings: none.
 
@@ -157,3 +172,4 @@ Settings: none.
 | Managing API keys or logins | pi's `/login` does it, and it stores keys in `auth.json` |
 | Changing pi itself | pi's core stays minimal, and a similar request was closed without action |
 | Display and cache settings (`hideThinkingBlock`, `cacheWarming`, and similar) | They change how pi looks and caches, not which model runs |
+| Clearing the default model | Setting another default does the job. Add it if a need comes up |

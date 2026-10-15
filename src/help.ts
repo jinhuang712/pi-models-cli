@@ -10,18 +10,29 @@ Commands:
   remove  <provider>/<model>...     Remove one or more models
   sync    <provider> | --all        Add models the provider's /models endpoint lists
   probe   <provider>[/<model>]      Check an entry will work, without a billed request
+
+Settings commands (they edit settings.json next to models.json):
+  enable  <pattern>...              Add patterns to enabledModels (the models pi starts with and cycles)
+  disable <pattern>... | --all      Remove patterns, or clear the filter
+  default <provider>/<model>        Set the default model; --thinking <level> sets the default level
+  thinking <provider>/<model> <level>   Set one model's default thinking level
+  budgets --low <n> ...             Set the token budgets of the thinking levels
+
   undo                              Restore the previous models.json
 
 Global options:
   --config <path>   models.json to edit
                     (default: ~/.pi/agent/models.json, honors PI_CODING_AGENT_DIR)
+  --settings-file <path>   settings.json for the settings commands
+                    (default: settings.json next to models.json)
   --dry-run         Show what would change, write nothing
   --json            Machine-readable output
   -h, --help        Show help for a command
   -v, --version
 
-Every change writes immediately, after saving a backup to models.bak/ (last 20 kept).
-Run \`pi-models undo\` to reverse the last change.
+Every change writes immediately, after saving a backup to models.bak/ or settings.bak/
+(last 20 kept). Run \`pi-models undo\` (or \`undo --settings\`) to reverse the last change.
+Read the current model settings with \`pi-models show --settings\`.
 
 Exit codes: 0 ok · 1 failed (nothing written) · 2 bad usage
 
@@ -57,6 +68,9 @@ Usage:
   pi-models show                       Providers: model count, api, base URL
   pi-models show <provider>            That provider's model IDs
   pi-models show <provider>/<model>    One model's full entry (JSON)
+  pi-models show --settings            The model keys of settings.json: defaultProvider,
+                                       defaultModel, defaultThinkingLevel, modelThinkingLevels,
+                                       thinkingBudgets, enabledModels
 
 Examples:
   pi-models show
@@ -173,17 +187,91 @@ Examples:
   pi-models probe opencode-go
   pi-models probe opencode-go/glm-5.3-flash --json
 `,
-	undo: `pi-models undo — restore the previous models.json
+	enable: `pi-models enable — choose which models pi starts with and cycles through
+
+Usage:
+  pi-models enable <pattern>...
+
+Adds patterns to enabledModels in settings.json. The patterns use the format of pi's
+--models option, for example sonnet, opencode-go/* or sonnet:high. Patterns already
+in the list are reported and skipped.
+
+WARNING: when enabledModels is not set, pi offers every model. The first enable sets
+the list, so pi then offers only the models those patterns match. The command warns
+when it does this. \`pi-models disable --all\` offers every model again.
+
+Examples:
+  pi-models enable "opencode-go/*" sonnet
+`,
+	disable: `pi-models disable — remove patterns from enabledModels
+
+Usage:
+  pi-models disable <pattern>...
+  pi-models disable --all
+
+Removes the exact patterns you name. When the list becomes empty, the setting is
+removed, so pi offers every model; an empty list is never written. --all removes the
+setting at once. A pattern that is not in the list is reported, with a suggestion.
+
+Examples:
+  pi-models disable sonnet
+  pi-models disable --all
+`,
+	default: `pi-models default — set the model and thinking level pi starts with
+
+Usage:
+  pi-models default <provider>/<model> [--thinking <level>]
+  pi-models default --thinking <level>
+
+Sets defaultProvider and defaultModel, and defaultThinkingLevel when you pass
+--thinking. Levels: off, minimal, low, medium, high, xhigh, max.
+A model that is not in models.json is still set, with a warning and a suggestion,
+because it may be a built-in pi model. Read the current values with
+\`pi-models show --settings\`.
+
+Examples:
+  pi-models default opencode-go/glm-5.3-flash --thinking high
+  pi-models default --thinking xhigh
+`,
+	thinking: `pi-models thinking — set one model's default thinking level
+
+Usage:
+  pi-models thinking <provider>/<model> <level>
+  pi-models thinking <provider>/<model> --unset
+
+Writes modelThinkingLevels["<provider>/<model>"] in settings.json. This overrides the
+default level for that model. Levels: off, minimal, low, medium, high, xhigh, max.
+--unset removes the entry; the last removal removes the whole setting.
+
+Examples:
+  pi-models thinking opencode-go/glm-5.3-flash high
+  pi-models thinking opencode-go/glm-5.3-flash --unset
+`,
+	budgets: `pi-models budgets — set the token budgets of the thinking levels
+
+Usage:
+  pi-models budgets [--minimal <n>] [--low <n>] [--medium <n>] [--high <n>] [--unset <level>]
+
+Writes thinkingBudgets in settings.json. Each value is a whole number of tokens.
+--unset removes one level's budget (repeatable); the last removal removes the setting.
+
+Examples:
+  pi-models budgets --low 2048 --high 32000
+  pi-models budgets --unset high
+`,
+	undo: `pi-models undo — restore the previous file
 
 Usage:
   pi-models undo [--list]
+  pi-models undo --settings [--list]
 
 Restores the newest backup in models.bak/ and removes it from the list, so running
 undo again steps back one more change.
+  --settings        Do this for settings.json (settings.bak/) instead of models.json
   --list            Show the backups, newest first
 
 Examples:
   pi-models undo
-  pi-models undo --list
+  pi-models undo --settings --list
 `,
 };

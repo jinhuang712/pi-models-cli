@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { type Common, type Context, type Report, add, probe, remove, show, sync, undo, update } from "./commands.ts";
+import { type Common, type Context, type Report, add, budgets, disable, enable, probe, remove, setDefaults, show, sync, thinking, undo, update } from "./commands.ts";
 import { FailError, UsageError } from "./errors.ts";
 import { FIELD_OPTIONS } from "./fields.ts";
 import { HELP, MAIN_HELP } from "./help.ts";
@@ -8,6 +8,7 @@ import { didYouMean } from "./suggest.ts";
 
 const GLOBAL = {
 	config: { type: "string" },
+	"settings-file": { type: "string" },
 	"dry-run": { type: "boolean" },
 	json: { type: "boolean" },
 	help: { type: "boolean", short: "h" },
@@ -17,13 +18,18 @@ const GLOBAL = {
 type Spec = Record<string, { type: "string" | "boolean"; short?: string; multiple?: boolean }>;
 
 const COMMAND_OPTIONS: Record<string, Spec> = {
-	show: {},
+	show: { settings: { type: "boolean" } },
 	add: { ...FIELD_OPTIONS, "copy-from": { type: "string" } },
 	update: { ...FIELD_OPTIONS, unset: { type: "string", multiple: true } },
 	remove: {},
 	sync: { all: { type: "boolean" }, prune: { type: "boolean" }, "copy-from": { type: "string" } },
 	probe: {},
-	undo: { list: { type: "boolean" } },
+	enable: {},
+	disable: { all: { type: "boolean" } },
+	default: { thinking: { type: "string" } },
+	thinking: { unset: { type: "boolean" } },
+	budgets: { minimal: { type: "string" }, low: { type: "string" }, medium: { type: "string" }, high: { type: "string" }, unset: { type: "string", multiple: true } },
+	undo: { list: { type: "boolean" }, settings: { type: "boolean" } },
 };
 
 export interface Io {
@@ -39,7 +45,17 @@ function version(): string {
 async function dispatch(command: string, positionals: string[], values: Record<string, never>, common: Common, ctx: Context): Promise<Report> {
 	switch (command) {
 		case "show":
-			return show(positionals, common, ctx);
+			return show(positionals, values, common, ctx);
+		case "enable":
+			return enable(positionals, common, ctx);
+		case "disable":
+			return disable(positionals, values, common, ctx);
+		case "default":
+			return setDefaults(positionals, values, common, ctx);
+		case "thinking":
+			return thinking(positionals, values, common, ctx);
+		case "budgets":
+			return budgets(positionals, values, common, ctx);
 		case "add":
 			return add(positionals, values, common, ctx);
 		case "update":
@@ -89,6 +105,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv, io: Io): Prom
 		const common: Common = {
 			dryRun: parsed.values["dry-run"] === true,
 			...(typeof parsed.values.config === "string" ? { config: parsed.values.config } : {}),
+			...(typeof parsed.values["settings-file"] === "string" ? { settings: parsed.values["settings-file"] } : {}),
 		};
 		const report = await dispatch(first, parsed.positionals, parsed.values as Record<string, never>, common, { env });
 		io.out(parsed.values.json === true ? `${JSON.stringify(report.json)}\n` : `${report.lines.join("\n")}\n`);

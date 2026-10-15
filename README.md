@@ -31,9 +31,14 @@ $ pi-models undo
 | `remove <provider>/<model>...` | Removes models, and warns if `settings.json` still uses one |
 | `sync <provider>` or `--all` | Adds the models the provider's `/models` endpoint serves; `--prune` removes the ones it no longer serves |
 | `probe <provider>[/<model>]` | Checks that an entry will work, with no billed request: pi loads it, the key resolves, the endpoint answers and lists the model |
-| `undo` | Restores the previous file; run it again to step back further |
+| `enable` / `disable <pattern>...` | Edit `enabledModels` in `settings.json`, the models pi starts with and cycles through |
+| `default <provider>/<model> [--thinking <level>]` | Set the default model and thinking level |
+| `thinking <provider>/<model> <level>` | Set one model's default thinking level |
+| `budgets --low <n> ...` | Set the token budgets of the thinking levels |
+| `show --settings` | Print the model keys of `settings.json` |
+| `undo` | Restores the previous file; `undo --settings` does this for `settings.json`. Run it again to step back further |
 
-Every command takes `--dry-run`, `--json` and `--config <path>`. Run `pi-models <command> --help` for the fields and examples. Every write saves a backup to `models.bak/` first and keeps the newest 20. The full contract is in [FEATURES.md](FEATURES.md).
+Every command takes `--dry-run`, `--json` and `--config <path>`; the settings commands also take `--settings-file <path>`. Run `pi-models <command> --help` for the fields and examples. Every write saves a backup to `models.bak/` first and keeps the newest 20. The full contract is in [FEATURES.md](FEATURES.md).
 
 ## Install
 
@@ -66,7 +71,8 @@ pi-models probe <provider>             # will the entries work?
 - `sync` reads only the first page of a paged response. It never removes models based on a list that may be partial.
 - A process killed during a write can leave a hidden `.models.json.tmp-<pid>` file next to `models.json`. The real file is untouched.
 - `probe` cannot prove that `compat` or the thinking settings are right, because that needs a real request. It also runs `pi --list-models`; without `pi` on PATH it uses its own, weaker checks.
-- Not built yet: the settings commands (model filters, defaults). See [ROADMAP.md](ROADMAP.md).
+- The first `enable` narrows pi to the patterns you give, because an unset `enabledModels` means every model. The command warns, and `disable --all` undoes it.
+- The settings commands accept any pattern without checking it against pi's matching rules.
 
 ## Documents
 

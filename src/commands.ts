@@ -18,7 +18,8 @@ import {
 	updateModel,
 	withModels,
 } from "./model-ops.ts";
-import { type Json, type Loaded, commit, listBackups, loadConfig, readJsonQuietly, resolveConfigPath, undoLast } from "./store.ts";
+import { type Json, type Loaded, commit, listBackups, loadConfig, loadSettings, readJsonQuietly, resolveConfigPath, undoLast } from "./store.ts";
+import { BUDGET_LEVELS, checkLevel, disableModels, enableModels, selectionOf, setBudgets, setDefault, setModelThinking } from "./settings-ops.ts";
 import { fetchModelList } from "./sync.ts";
 import { probe as runProbe, parseTarget } from "./probe.ts";
 import { validateEntry } from "./fields.ts";
@@ -35,6 +36,7 @@ export interface Report {
 
 export interface Common {
 	config?: string;
+	settings?: string;
 	dryRun: boolean;
 }
 
@@ -72,7 +74,25 @@ function finish(loaded: Loaded, outcome: Outcome, common: Common, extraLines: st
 	};
 }
 
-export function show(positionals: string[], common: Common, ctx: Context): Report {
+/** settings.json next to models.json, unless --settings names another file. */
+function settingsPath(common: Common, ctx: Context): string {
+	if (common.settings !== undefined) return resolveConfigPath(common.settings, ctx.env);
+	return resolveConfigPath(join(dirname(resolveConfigPath(common.config, ctx.env)), "settings.json"), ctx.env);
+}
+
+function modelsQuietly(common: Common, ctx: Context): Json | undefined {
+	return readJsonQuietly(resolveConfigPath(common.config, ctx.env));
+}
+
+export function show(positionals: string[], values: Values, common: Common, ctx: Context): Report {
+	if (values.settings === true) {
+		if (positionals.length > 0) throw new UsageError("show --settings takes no argument");
+		const selection = selectionOf(loadSettings(settingsPath(common, ctx)).config);
+		return {
+			lines: Object.keys(selection).length === 0 ? ["no model settings are set"] : Object.entries(selection).map(([k, v]) => `${k}: ${JSON.stringify(v)}`),
+			json: { ok: true, settings: selection },
+		};
+	}
 	const { config } = open(common, ctx);
 	const [target] = positionals;
 	if (positionals.length > 1) throw new UsageError("show takes at most one argument");
@@ -209,6 +229,62 @@ export async function sync(positionals: string[], values: Values, common: Common
 	return report;
 }
 
+function settingsLoaded(common: Common, ctx: Context): Loaded {
+	return loadSettings(settingsPath(common, ctx));
+}
+
+export function enable(positionals: string[], common: Common, ctx: Context): Report {
+	if (positionals.length === 0) throw new UsageError("enable takes one or more model patterns, for example sonnet or opencode-go/*");
+	const loaded = settingsLoaded(common, ctx);
+	return finish(loaded, enableModels(loaded.config, positionals), common);
+}
+
+export function disable(positionals: string[], values: Values, common: Common, ctx: Context): Report {
+	const all = values.all === true;
+	if (all === (positionals.length > 0)) throw new UsageError("disable takes one or more patterns, or --all");
+	const loaded = settingsLoaded(common, ctx);
+	return finish(loaded, disableModels(loaded.config, positionals, all), common);
+}
+
+export function setDefaults(positionals: string[], values: Values, common: Common, ctx: Context): Report {
+	if (positionals.length > 1) throw new UsageError("default takes at most one argument: <provider>/<model>");
+	const thinking = typeof values.thinking === "string" ? checkLevel(values.thinking, "--thinking") : undefined;
+	const ref = positionals[0] === undefined ? undefined : parseRef(positionals[0]);
+	if (ref === undefined && thinking === undefined) {
+		throw new UsageError("default needs a <provider>/<model>, or --thinking <level>, or both. To read the defaults, run `pi-models show --settings`");
+	}
+	const loaded = settingsLoaded(common, ctx);
+	return finish(loaded, setDefault(loaded.config, ref, thinking, modelsQuietly(common, ctx)), common);
+}
+
+export function thinking(positionals: string[], values: Values, common: Common, ctx: Context): Report {
+	const [target, level, ...rest] = positionals;
+	const unset = values.unset === true;
+	if (target === undefined || rest.length > 0 || (unset === (level !== undefined))) {
+		throw new UsageError("thinking takes <provider>/<model> <level>, or <provider>/<model> --unset");
+	}
+	const loaded = settingsLoaded(common, ctx);
+	return finish(loaded, setModelThinking(loaded.config, parseRef(target), level === undefined ? undefined : checkLevel(level), modelsQuietly(common, ctx)), common);
+}
+
+export function budgets(positionals: string[], values: Values, common: Common, ctx: Context): Report {
+	if (positionals.length > 0) throw new UsageError("budgets takes only options: --minimal, --low, --medium, --high, --unset <level>");
+	const set: Record<string, number> = {};
+	for (const level of BUDGET_LEVELS) {
+		const text = values[level];
+		if (typeof text !== "string") continue;
+		if (!/^\d+$/.test(text)) throw new UsageError(`--${level} must be a whole number of tokens, got '${text}'`);
+		set[level] = Number(text);
+	}
+	const unset = Array.isArray(values.unset) ? (values.unset as string[]) : [];
+	for (const level of unset) {
+		if (!(BUDGET_LEVELS as readonly string[]).includes(level)) throw new UsageError(`--unset takes one of ${BUDGET_LEVELS.join(", ")}, got '${level}'`);
+	}
+	if (Object.keys(set).length === 0 && unset.length === 0) throw new UsageError("budgets needs at least one of --minimal, --low, --medium, --high, --unset <level>");
+	const loaded = settingsLoaded(common, ctx);
+	return finish(loaded, setBudgets(loaded.config, set, unset), common);
+}
+
 export async function probe(positionals: string[], common: Common, ctx: Context): Promise<Report> {
 	const [target, ...rest] = positionals;
 	if (target === undefined || rest.length > 0) throw new UsageError("probe takes one argument: <provider> or <provider>/<model>");
@@ -233,7 +309,7 @@ export async function probe(positionals: string[], common: Common, ctx: Context)
 }
 
 export function undo(values: Values, common: Common, ctx: Context): Report {
-	const path = resolveConfigPath(common.config, ctx.env);
+	const path = values.settings === true ? settingsPath(common, ctx) : resolveConfigPath(common.config, ctx.env);
 	const backups = listBackups(path);
 	if (values.list === true) {
 		return {
