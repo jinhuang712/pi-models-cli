@@ -1,4 +1,4 @@
-<!-- what-we-build: drafted 2026-10-15 -->
+<!-- what-we-build: approved 2026-10-15 -->
 # pi-models-cli — Proposal
 
 > Edit pi's `models.json` with small commands, so an agent never has to read or rewrite the file.

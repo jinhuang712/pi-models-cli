@@ -1,4 +1,4 @@
-<!-- what-we-build: drafted 2026-10-15 -->
+<!-- what-we-build: approved 2026-10-15 -->
 # Roadmap
 
 Where the work stands, as of 2026-10-15. Behavior lives in FEATURES.md and the checks in GOALS.md. A milestone is done only when its exit criteria are measured by someone other than its author.
