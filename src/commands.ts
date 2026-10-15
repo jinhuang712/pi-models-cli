@@ -45,6 +45,11 @@ function open(common: Common, ctx: Context): Loaded {
 
 /** Write an outcome unless it is a dry run or changed nothing; build the report either way. */
 function finish(loaded: Loaded, outcome: Outcome, common: Common, extraLines: string[] = [], extraJson: Json = {}): Report {
+	if (outcome.changes.length > 0 && !loaded.canonical) {
+		outcome.warnings.push(
+			"the file's layout changed (it was not in standard JSON.stringify layout, for example compact arrays or escaped characters); the backup keeps the original",
+		);
+	}
 	const lines = [...outcome.changes.map((c) => c.line), ...extraLines, ...outcome.warnings.map((w) => `warning: ${w}`)];
 	let backup: string | undefined;
 	if (outcome.changes.length > 0 && !common.dryRun) {
@@ -140,6 +145,7 @@ export async function sync(positionals: string[], values: Values, common: Common
 	let config = loaded.config;
 	const changes: Change[] = [];
 	const lines: string[] = [];
+	const warnings: string[] = [];
 	const needsUpdate: string[] = [];
 	const skipped: { provider: string; reason: string }[] = [];
 	const kept: string[] = [];
@@ -158,6 +164,8 @@ export async function sync(positionals: string[], values: Values, common: Common
 		let models = [...modelsOf(provider)];
 		for (const item of listed.models) {
 			if (have.has(item.id)) continue;
+			have.add(item.id);
+			served.add(item.id);
 			const fields: Fields = {
 				...(item.contextWindow ? { contextWindow: item.contextWindow } : {}),
 				...(item.maxTokens ? { maxTokens: item.maxTokens } : {}),
@@ -177,7 +185,11 @@ export async function sync(positionals: string[], values: Values, common: Common
 				line: `+ ${target}${shown.length > 0 ? `  ${shown.join(", ")}` : ""}${missing ? "  needs update (endpoint reported no limits)" : ""}`,
 			});
 		}
-		for (const id of have) {
+		if (!listed.complete) {
+			const gone = modelsOf(provider).filter((m) => !served.has(String(m.id))).length;
+			warnings.push(`${name}: ${listed.why}${gone > 0 ? `; not checking the ${gone} models the file has that the list lacks` : ""}${prune ? " (--prune ignored)" : ""}`);
+		}
+		for (const id of listed.complete ? have : []) {
 			if (served.has(id)) continue;
 			if (prune) {
 				models = models.filter((m) => m.id !== id);
@@ -190,7 +202,7 @@ export async function sync(positionals: string[], values: Values, common: Common
 		config = withModels(config, name, models);
 	}
 
-	const outcome: Outcome = { config, changes, warnings: [] };
+	const outcome: Outcome = { config, changes, warnings };
 	const report = finish(loaded, outcome, common, lines, { skipped, needsUpdate, kept });
 	if (changes.length === 0 && skipped.length === 0 && kept.length === 0) report.lines.push("already in sync");
 	return report;

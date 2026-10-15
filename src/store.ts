@@ -32,18 +32,28 @@ export function resolveConfigPath(option: string | undefined, env: NodeJS.Proces
 
 export interface Loaded {
 	path: string;
+	/** The file's exact text, including any BOM. Backups hold this. */
 	raw: string;
 	config: Json;
+	eol: "\n" | "\r\n";
+	bom: boolean;
+	/** True when writing the unchanged config back would give the same text. */
+	canonical: boolean;
 }
 
 export function loadConfig(path: string): Loaded {
 	if (!existsSync(path)) throw new FailError(`${path} does not exist`);
 	const raw = readFileSync(path, "utf8");
+	const bom = raw.startsWith("\uFEFF");
+	const body = bom ? raw.slice(1) : raw;
 	let config: unknown;
 	try {
-		config = JSON.parse(raw);
+		config = JSON.parse(body);
 	} catch (error) {
-		throw new FailError(`${path} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+		const hint = /\/\/|\/\*|,\s*[}\]]/.test(body)
+			? ". It may hold comments or trailing commas, which pi accepts but this tool would drop; remove them or edit the file by hand"
+			: "";
+		throw new FailError(`${path} is not valid JSON: ${error instanceof Error ? error.message : String(error)}${hint}`);
 	}
 	if (typeof config !== "object" || config === null || Array.isArray(config)) {
 		throw new FailError(`${path} must hold a JSON object`);
@@ -52,7 +62,9 @@ export function loadConfig(path: string): Loaded {
 	if (typeof providers !== "object" || providers === null || Array.isArray(providers)) {
 		throw new FailError(`${path} has no "providers" object`);
 	}
-	return { path, raw, config: config as Json };
+	const loaded: Loaded = { path, raw, config: config as Json, eol: body.includes("\r\n") ? "\r\n" : "\n", bom, canonical: true };
+	loaded.canonical = render(loaded, loaded.config) === raw;
+	return loaded;
 }
 
 /** Read a JSON file next to models.json, or undefined when it is missing or unreadable. */
@@ -65,20 +77,23 @@ export function readJsonQuietly(path: string): Json | undefined {
 	}
 }
 
-/** Serialize with the indent and trailing newline of the original text. */
-export function serialize(config: Json, original: string): string {
-	const indent = /^[ \t]+(?=")/m.exec(original)?.[0] ?? "  ";
-	const text = JSON.stringify(config, null, indent);
-	return original.endsWith("\n") || original === "" ? `${text}\n` : text;
+/** Serialize with the indent, line endings, BOM and trailing newline of the original text. */
+export function render(loaded: Loaded, config: Json): string {
+	const body = loaded.bom ? loaded.raw.slice(1) : loaded.raw;
+	const indent = /^[ \t]+(?=")/m.exec(body)?.[0] ?? "  ";
+	let text = JSON.stringify(config, null, indent);
+	if (loaded.eol === "\r\n") text = text.replace(/\n/g, "\r\n");
+	if (body.endsWith("\n") || body === "") text += loaded.eol;
+	return (loaded.bom ? "\uFEFF" : "") + text;
 }
 
 export function backupDir(path: string): string {
 	return join(dirname(path), `${basename(path).replace(/\.json$/, "")}.bak`);
 }
 
+/** UTC, so names sort in time order across daylight-saving changes. */
 function stamp(date: Date): string {
-	const p = (n: number, w = 2) => String(n).padStart(w, "0");
-	return `${date.getFullYear()}${p(date.getMonth() + 1)}${p(date.getDate())}-${p(date.getHours())}${p(date.getMinutes())}${p(date.getSeconds())}-${p(date.getMilliseconds(), 3)}`;
+	return date.toISOString().replace(/[-:.]/g, "");
 }
 
 export function listBackups(path: string): string[] {
@@ -113,10 +128,18 @@ export interface Written {
 export function commit(loaded: Loaded, next: Json, now: Date = new Date()): Written {
 	const dir = backupDir(loaded.path);
 	mkdirSync(dir, { recursive: true, mode: 0o700 });
-	let backup = join(dir, `${stamp(now)}.json`);
-	for (let n = 1; existsSync(backup); n++) backup = join(dir, `${stamp(now)}-${n}.json`);
+	// Another process may have changed the file since this command read it; never overwrite that change.
+	if (readFileSync(loaded.path, "utf8") !== loaded.raw) {
+		throw new FailError(`${loaded.path} changed while this command ran; nothing was written. Run the command again`);
+	}
+	// A sequence number after the time keeps names unique and sorted when two backups share a millisecond.
+	let backup = "";
+	for (let n = 0; ; n++) {
+		backup = join(dir, `${stamp(now)}-${String(n).padStart(3, "0")}.json`);
+		if (!existsSync(backup)) break;
+	}
 	writeFileSync(backup, loaded.raw, { mode: 0o600 });
-	writeAtomic(loaded.path, serialize(next, loaded.raw));
+	writeAtomic(loaded.path, render(loaded, next));
 	for (const old of listBackups(loaded.path).slice(0, -BACKUPS_KEPT)) unlinkSync(old);
 	return { backup };
 }

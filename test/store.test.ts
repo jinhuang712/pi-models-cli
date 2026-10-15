@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync, symlinkSync, chmodSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { BACKUPS_KEPT, backupDir, listBackups } from "../src/store.ts";
@@ -53,11 +53,17 @@ test("--dry-run writes nothing and makes no backup", async () => {
 
 test("only the newest backups are kept", async () => {
 	const sb = sandbox();
-	for (let i = 0; i < BACKUPS_KEPT + 5; i++) {
+	const total = BACKUPS_KEPT + 5;
+	for (let i = 0; i < total; i++) {
 		const r = await cli(sb, "add", `opencode-go/zz-${i}`, "--contextWindow", "1");
 		assert.equal(r.code, 0, r.err);
 	}
-	assert.equal(listBackups(sb.models).length, BACKUPS_KEPT);
+	const kept = listBackups(sb.models);
+	assert.equal(kept.length, BACKUPS_KEPT);
+	// Backup i holds the file before add number i, so it lists zz-0 .. zz-(i-1). The newest kept must be the last one.
+	const ids = (path: string) => JSON.parse(readFileSync(path, "utf8")).providers["opencode-go"].models.filter((m: { id: string }) => m.id.startsWith("zz-")).length;
+	assert.equal(ids(kept.at(-1) as string), total - 1);
+	assert.equal(ids(kept[0] as string), total - BACKUPS_KEPT);
 });
 
 test("a validation failure writes nothing and makes no backup", async () => {
@@ -77,15 +83,21 @@ test("a process killed between the temp write and the rename leaves the original
 		env: { ...sb.env, PI_MODELS_TEST_CRASH_BEFORE_RENAME: "1" },
 	});
 	assert.equal(result.signal, "SIGKILL");
+	// The new text was written to a temp file first; only the rename never happened.
+	const temps = readdirSync(sb.dir).filter((f) => f.startsWith(".models.json.tmp-"));
+	assert.equal(temps.length, 1);
+	assert.match(readFileSync(join(sb.dir, temps[0] as string), "utf8"), /zz-new/);
 	assert.equal(readFileSync(sb.models, "utf8"), original);
 	JSON.parse(readFileSync(sb.models, "utf8"));
 });
 
 test("the file mode is kept", async () => {
-	const sb = sandbox();
-	chmodSync(sb.models, 0o600);
-	await cli(sb, "add", "opencode-go/zz-new", "--contextWindow", "9");
-	assert.equal(statSync(sb.models).mode & 0o777, 0o600);
+	for (const mode of [0o644, 0o640, 0o600]) {
+		const sb = sandbox();
+		chmodSync(sb.models, mode);
+		await cli(sb, "add", "opencode-go/zz-new", "--contextWindow", "9");
+		assert.equal(statSync(sb.models).mode & 0o777, mode);
+	}
 });
 
 test("a symlinked models.json is edited in place, and the link stays a link", async () => {
@@ -98,6 +110,6 @@ test("a symlinked models.json is edited in place, and the link stays a link", as
 	assert.equal(r.code, 0, r.err);
 	assert.match(readFileSync(real, "utf8"), /zz-new/);
 	assert.ok(readdirSync(sb.dir).includes("link.json"));
-	assert.equal(statSync(link).isFile(), true);
+	assert.equal(lstatSync(link).isSymbolicLink(), true);
 	assert.notEqual(readFileSync(real, "utf8"), readFileSync(sb.models, "utf8"));
 });

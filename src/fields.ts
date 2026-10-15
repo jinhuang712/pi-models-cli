@@ -39,10 +39,12 @@ function str(values: RawValues, key: string): string | undefined {
 }
 
 function number(flag: string, text: string, min: "positive" | "nonnegative"): number {
+	// Plain decimal digits only: no hex, exponent, sign or spaces. Token counts are whole numbers.
+	const pattern = min === "positive" ? /^\d+$/ : /^\d+(\.\d+)?$/;
 	const value = Number(text);
-	const ok = text.trim() !== "" && Number.isFinite(value) && (min === "positive" ? value > 0 : value >= 0);
+	const ok = pattern.test(text) && Number.isFinite(value) && (min === "positive" ? value > 0 : value >= 0);
 	if (!ok) {
-		const what = min === "positive" ? "a positive number" : "a number of 0 or more";
+		const what = min === "positive" ? "a whole number greater than 0" : "a number of 0 or more, such as 0.4";
 		throw new UsageError(`--${flag} must be ${what}, got '${text}'${/[km]$/i.test(text) ? "; write the full number, for example 1000000" : ""}`);
 	}
 	return value;

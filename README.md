@@ -14,7 +14,7 @@ glm-5.3-flash  deepseek-v4-flash  …
 
 $ pi-models add opencode-go/glm-5.4 --copy-from glm-5.3-flash --contextWindow 1000000
 + opencode-go/glm-5.4  contextWindow=1000000, copied from glm-5.3-flash (…)
-wrote ~/.pi/agent/models.json (backup: ~/.pi/agent/models.bak/20261015-124500-123.json)
+wrote ~/.pi/agent/models.json (backup: ~/.pi/agent/models.bak/20261015T124500123Z-000.json)
 
 $ pi-models sync opencode-go
 + opencode-go/space-bunny  needs update (endpoint reported no limits)
@@ -59,7 +59,9 @@ pi-models sync <provider> --dry-run    # what does the endpoint serve that your 
 - Most endpoints list model IDs but no context sizes. `sync` adds those models without limits and marks them `needs update`. pi then uses its own defaults until you run `update`.
 - pi needs all four cost rates (`--cost.input`, `--cost.output`, `--cost.cacheRead`, `--cost.cacheWrite`) together in a new model entry.
 - Writes are atomic (a temp file, then a rename). The file mode is kept. Ownership and access-control lists are not.
-- Two commands running at the same moment are not locked against each other.
+- Two commands running at the same moment are not locked. When another process changes the file while a command runs, the command fails and writes nothing; run it again.
+- A file with comments or trailing commas (pi accepts them) is refused, because rewriting it would drop them. A file in another layout is rewritten in 2-space layout, with a warning; the backup keeps the original.
+- `sync` reads only the first page of a paged response. It never removes models based on a list that may be partial.
 - A process killed during a write can leave a hidden `.models.json.tmp-<pid>` file next to `models.json`. The real file is untouched.
 - Not built yet: `probe` and the settings commands (model filters, defaults). See [ROADMAP.md](ROADMAP.md).
 

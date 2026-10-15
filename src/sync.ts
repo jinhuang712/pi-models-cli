@@ -17,8 +17,10 @@ export async function resolveValue(value: string, env: NodeJS.ProcessEnv = proce
 		}
 	}
 	let missing = false;
-	const text = value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (_, a: string, b: string) => {
-		const v = env[a ?? b];
+	// `$$` is a literal dollar sign, as in pi.
+	const text = value.replace(/\$\$|\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (all, a: string | undefined, b: string | undefined) => {
+		if (all === "$$") return "$";
+		const v = env[(a ?? b) as string];
 		if (v === undefined || v === "") missing = true;
 		return v ?? "";
 	});
@@ -61,31 +63,55 @@ function firstNumber(item: Json, keys: string[]): number | undefined {
 	return undefined;
 }
 
+export interface ParsedList {
+	models: Listed[];
+	/** False when the list may be partial (paged, empty, or holding entries we could not read). Never prune from such a list. */
+	complete: boolean;
+	why?: string;
+}
+
+const PAGING_KEYS = ["nextPageToken", "next_page_token", "next_page", "nextPage"];
+
 /** Read the model list out of the common response shapes: {data: [...]}, {models: [...]}, [...]. */
-export function parseModelList(payload: unknown): Listed[] | undefined {
+export function parseModelList(payload: unknown): ParsedList | undefined {
 	const raw = Array.isArray(payload)
 		? payload
 		: typeof payload === "object" && payload !== null
 			? ((payload as Json).data ?? (payload as Json).models)
 			: undefined;
 	if (!Array.isArray(raw)) return undefined;
-	const out: Listed[] = [];
+	const byId = new Map<string, Listed>();
+	let unreadable = 0;
 	for (const item of raw) {
-		if (typeof item === "string") {
-			out.push({ id: item });
+		let listed: Listed | undefined;
+		if (typeof item === "string" && item !== "") {
+			listed = { id: item };
 		} else if (typeof item === "object" && item !== null) {
 			const rec = item as Json;
 			const id = [rec.id, rec.model, rec.name].find((v): v is string => typeof v === "string" && v !== "");
-			if (id === undefined) continue;
-			const contextWindow = firstNumber(rec, CONTEXT_KEYS);
-			const maxTokens = firstNumber(rec, OUTPUT_KEYS);
-			out.push({ id, ...(contextWindow ? { contextWindow } : {}), ...(maxTokens ? { maxTokens } : {}) });
+			if (id !== undefined) {
+				const contextWindow = firstNumber(rec, CONTEXT_KEYS);
+				const maxTokens = firstNumber(rec, OUTPUT_KEYS);
+				listed = { id, ...(contextWindow ? { contextWindow } : {}), ...(maxTokens ? { maxTokens } : {}) };
+			}
 		}
+		if (listed === undefined) unreadable++;
+		else if (!byId.has(listed.id)) byId.set(listed.id, listed);
 	}
-	return out;
+	const models = [...byId.values()];
+	const meta = typeof payload === "object" && payload !== null && !Array.isArray(payload) ? (payload as Json) : {};
+	const paged = meta.has_more === true || PAGING_KEYS.some((k) => typeof meta[k] === "string" && meta[k] !== "");
+	const why = paged
+		? "the response is paged and only the first page was read"
+		: unreadable > 0
+			? `${unreadable} entries had no readable ID`
+			: models.length === 0
+				? "the endpoint returned no models"
+				: undefined;
+	return { models, complete: why === undefined, ...(why ? { why } : {}) };
 }
 
-export type FetchResult = { ok: true; models: Listed[]; url: string } | { ok: false; reason: string };
+export type FetchResult = ({ ok: true; url: string } & ParsedList) | { ok: false; reason: string };
 
 /** GET {baseUrl}/models, then {baseUrl}/v1/models. Never throws. */
 export async function fetchModelList(provider: Json, name: string, auth: Json | undefined, env: NodeJS.ProcessEnv = process.env): Promise<FetchResult> {
@@ -113,8 +139,8 @@ export async function fetchModelList(provider: Json, name: string, auth: Json | 
 		try {
 			const response = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
 			if (response.status === 200) {
-				const models = parseModelList(await response.json().catch(() => undefined));
-				if (models !== undefined) return { ok: true, models, url };
+				const parsed = parseModelList(await response.json().catch(() => undefined));
+				if (parsed !== undefined) return { ok: true, url, ...parsed };
 				reasons.push(`${url}: answered 200 but not with a model list`);
 			} else {
 				reasons.push(`${url}: HTTP ${response.status}`);

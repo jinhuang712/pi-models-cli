@@ -32,6 +32,7 @@ Settings: none.
 
 `pi-models add <provider>/<model> [fields]` adds a model to a provider that already exists in `models.json`.
 
+- Token counts (`--contextWindow`, `--maxTokens`) are whole decimal numbers, such as `1000000`; `1M`, `1e6` and `0x10` are refused.
 - The fields use the names from `models.json`: `--name`, `--contextWindow`, `--maxTokens`, `--reasoning`, `--input text,image`, `--cost.input`, `--cost.output`, `--cost.cacheRead`, `--cost.cacheWrite`.
 - `--copy-from <model>` starts from another model of the same provider. Every field is copied except `id` and `name`, including `compat` and `thinkingLevelMap`. The name is the new model ID unless you pass `--name`, so two models never share a display name. Fields you pass override the copy.
 - Without `--copy-from`, only the fields you pass are written. pi applies its own defaults to the rest.
@@ -68,6 +69,8 @@ Settings: none.
 - A new model gets only the fields the endpoint reports. When the endpoint reports no limits, the model is added without `contextWindow` and `maxTokens`, and the output says `needs update` beside it. pi then uses its own default.
 - `--copy-from <model>` starts each new model from that model.
 - `--prune` also removes models the endpoint no longer lists. Without it, nothing is removed.
+- A list that may be partial is never used to remove or report missing models: an empty list, a paged response (only the first page is read), or entries with no readable ID. The output says why, still adds the new models it did read, and ignores `--prune`.
+- A model the endpoint lists twice is added once.
 - A provider with no `/models` endpoint is skipped, and the output gives the reason.
 
 Settings: none.
@@ -76,7 +79,10 @@ Settings: none.
 
 Every command that changes a file saves a copy first and can be undone.
 
-- Before a write, the command copies the file to `models.bak/` next to it. The newest 20 copies are kept.
+- Before a write, the command copies the file to `models.bak/` next to it. The newest 20 copies are kept. Names are UTC timestamps, so they sort in time order.
+- When another process changes `models.json` while a command runs, the command fails and writes nothing, so no edit is lost.
+- A file in a different layout (compact arrays, escaped characters) is rewritten in 2-space layout with a warning, and the backup keeps the original. Line endings (LF or CRLF) and a leading BOM are kept.
+- A file with comments or trailing commas, which pi accepts, is refused with the reason, because rewriting it would drop them.
 - A write happens in one step. A crash in the middle leaves the original file as it was.
 - The command checks the new file before it writes. When the check fails, nothing is written and the exit code is `1`.
 - `pi-models undo` restores the newest copy. Running it again steps back one more copy. `pi-models undo --list` shows the copies with their times.

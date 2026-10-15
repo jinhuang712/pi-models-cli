@@ -135,6 +135,7 @@ test("--all skips providers with no baseUrl or model list, and writes once", asy
 				p: { baseUrl: `${base}/v1`, models: [] },
 				q: { baseUrl: `${base}/v1`, models: [] },
 				onlyOverrides: { modelOverrides: {} },
+				urlNoModels: { baseUrl: `${base}/v1` },
 				noUrl: { models: [] },
 			},
 		}),
@@ -142,6 +143,7 @@ test("--all skips providers with no baseUrl or model list, and writes once", asy
 	const r = await cli(sb, "sync", "--all", "--json");
 	const out = JSON.parse(r.out);
 	assert.equal(out.changes.length, 2);
+	assert.deepEqual(readJson(sb.models).providers.urlNoModels, { baseUrl: `${base}/v1` });
 	const { listBackups } = await import("../src/store.ts");
 	assert.equal(listBackups(sb.models).length, 1);
 });

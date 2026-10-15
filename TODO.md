@@ -10,6 +10,11 @@ Small follow-ups with no milestone yet. Move an item to ROADMAP.md once it has o
 - **Fill in limits for new models.** The endpoints of `opencode-go` and `opencode-zen` report no context sizes, so every synced model needs `update`. pi.dev's catalog might supply them. Check pi's catalog API before building this.
 - **Clean up the temp file a killed write leaves** (`.models.json.tmp-<pid>`).
 - **Decide on locking** for two commands running at once.
+- **Follow paged `/models` responses** (`has_more` with `last_id`, `nextPageToken`) so `sync --prune` can work on providers that page. Today a paged list is read once and never pruned from.
+- **Gemini-style lists** use IDs like `models/gemini-2.5-pro` and `inputTokenLimit`. `sync` would add `models/…` IDs. No provider in your file works this way, so it waits.
+- **Env-var key fallback.** For built-in providers pi also reads keys from its own environment variables (for example `OPENAI_API_KEY`). `sync` does not, so it can send no key where pi would send one.
+- **Read files with comments or trailing commas,** and keep the comments when writing. Today such a file is refused.
+- **Large integers.** JSON.parse rounds numbers above 2^53. No model setting is that large, so this is only noted.
 - **Keep ownership and ACLs** when renaming over `models.json`, or document the limit (the README documents it now).
 - **Pick the binary name.** `pi-models` or another. `pimodel` is taken on npm.
 - **Decide about a pi skill for agents.** A short skill or `AGENTS.md` snippet that teaches an agent the commands. Recommended, planned after the first build.

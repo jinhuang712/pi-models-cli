@@ -14,7 +14,9 @@ export function parseRef(text: string): ModelRef {
 	if (slash <= 0 || slash === text.length - 1) {
 		throw new UsageError(`'${text}' must look like <provider>/<model>, for example opencode-go/glm-5`);
 	}
-	return { provider: text.slice(0, slash), model: text.slice(slash + 1) };
+	const model = text.slice(slash + 1);
+	if (model !== model.trim()) throw new UsageError(`the model ID in '${text}' must not start or end with a space`);
+	return { provider: text.slice(0, slash), model };
 }
 
 export const refText = (ref: ModelRef) => `${ref.provider}/${ref.model}`;
@@ -44,6 +46,9 @@ function getProvider(config: Json, name: string): Json {
 		throw new FailError(
 			`provider '${name}' is not in models.json${didYouMean(name, names)} (providers: ${names.join(", ")}). pi-models does not add providers; add one by editing the file`,
 		);
+	}
+	if (provider.models !== undefined && !Array.isArray(provider.models)) {
+		throw new FailError(`providers.${name}.models is not a list; fix it by hand before using pi-models`);
 	}
 	return provider;
 }
@@ -112,7 +117,11 @@ export function updateModel(config: Json, ref: ModelRef, fields: Fields, unset: 
 	const current = findModel(provider, ref.provider, ref.model);
 	for (const key of unset) {
 		if (UNSETTABLE_NOT_ALLOWED.has(key)) throw new UsageError(`--unset ${key} is not allowed: a model needs its ${key}`);
+		if (key.includes(".")) {
+			throw new UsageError(`--unset takes a top-level field, got '${key}'. To change one cost rate, use --cost.<rate>; to remove all of cost, use --unset cost`);
+		}
 	}
+	const absent = unset.filter((key) => !(key in current));
 	let entry = applyFields(current, fields);
 	const unsetDone: string[] = [];
 	for (const key of unset) {
@@ -134,10 +143,12 @@ export function updateModel(config: Json, ref: ModelRef, fields: Fields, unset: 
 	}
 	const models = modelsOf(provider).map((m) => (m === current ? entry : m));
 	const line = diffs.length === 0 ? `= ${refText(ref)}  no change` : `~ ${refText(ref)}  ${diffs.join(", ")}`;
+	const warnings = absent.map((key) => `${refText(ref)} has no field '${key}' to unset`);
+	if (diffs.length === 0) warnings.push(line.slice(2));
 	return {
 		config: withModels(config, ref.provider, models),
 		changes: diffs.length === 0 ? [] : [{ op: "update", target: refText(ref), line }],
-		warnings: diffs.length === 0 ? [line.slice(2)] : [],
+		warnings,
 	};
 }
 
@@ -189,7 +200,7 @@ export interface ProviderSummary {
 export function summarize(config: Json): ProviderSummary[] {
 	return Object.entries(providersOf(config)).map(([name, p]) => ({
 		name,
-		models: modelsOf(p).length,
+		models: Array.isArray(p.models) ? p.models.length : 0,
 		...(typeof p.api === "string" ? { api: p.api } : {}),
 		...(typeof p.baseUrl === "string" ? { baseUrl: p.baseUrl } : {}),
 	}));
