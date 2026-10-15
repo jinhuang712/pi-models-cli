@@ -25,3 +25,5 @@ Small follow-ups with no milestone yet. Move an item to ROADMAP.md once it has o
 - **Unset the default model.** `default` can only set a model, not clear it. Add `--unset` if the need comes up.
 - **Decide where phase 2 lives.** ROADMAP.md has M3 for the settings commands, and FEATURES.md has F9 and F10. Remove the settings item above once their command names are final.
 - **Correct an earlier count.** The conversation said "about 30" backup files. The real count is 23 `models.json.*` backups (plus 5 for `models-store.json`).
+- **Does `pi --list-models` make network requests?** `probe` runs it in a throwaway folder with only API keys, so it cannot refresh an OAuth token. Whether it fetches pi's model catalog (a GET) was not checked.
+- **Header-carried credentials in `sync` and `probe`.** A provider that authenticates through `headers` still gets those headers on the normal request. The comparison request without credentials sends none of them.

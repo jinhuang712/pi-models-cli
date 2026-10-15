@@ -70,7 +70,8 @@ pi-models probe <provider>             # will the entries work?
 - A file with comments or trailing commas (pi accepts them) is refused, because rewriting it would drop them. A file in another layout is rewritten in 2-space layout, with a warning; the backup keeps the original.
 - `sync` reads only the first page of a paged response. It never removes models based on a list that may be partial.
 - A process killed during a write can leave a hidden `.models.json.tmp-<pid>` file next to `models.json`. The real file is untouched.
-- `probe` cannot prove that `compat` or the thinking settings are right, because that needs a real request. It also runs `pi --list-models`; without `pi` on PATH it uses its own, weaker checks.
+- `probe` cannot prove that `compat` or the thinking settings are right, because that needs a real request. It also runs `pi --list-models` in a throwaway folder, with only your API keys copied in; without `pi` on PATH it uses its own, weaker checks. It is not known whether `pi --list-models` makes other network requests, such as fetching pi's model catalog.
+- `sync` and `probe` never follow a redirect. If your `baseUrl` redirects, set it to the final address.
 - The first `enable` narrows pi to the patterns you give, because an unset `enabledModels` means every model. The command warns, and `disable --all` undoes it.
 - The settings commands accept any pattern without checking it against pi's matching rules.
 

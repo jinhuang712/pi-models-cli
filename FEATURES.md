@@ -83,6 +83,8 @@ Every command that changes a file saves a copy first and can be undone.
 - When another process changes `models.json` while a command runs, the command fails and writes nothing, so no edit is lost.
 - A file in a different layout (compact arrays, escaped characters) is rewritten in 2-space layout with a warning, and the backup keeps the original. Line endings (LF or CRLF) and a leading BOM are kept.
 - A file with comments or trailing commas, which pi accepts, is refused with the reason, because rewriting it would drop them.
+- A symbolic link to a file that does not exist is refused, not replaced.
+- `sync` and `probe` never follow a redirect, because it could carry your credentials to another host.
 - A write happens in one step. A crash in the middle leaves the original file as it was.
 - The command checks the new file before it writes. When the check fails, nothing is written and the exit code is `1`.
 - `pi-models undo` restores the newest copy. Running it again steps back one more copy. `pi-models undo --list` shows the copies with their times.
@@ -106,14 +108,16 @@ Settings: none.
 
 | Check | Passes when |
 |---|---|
-| entry | pi itself loads `models.json` (the tool runs `pi --list-models`, which sends no model request) and, for one model, lists it with its limits. Without `pi` on PATH, the tool's own rules are used and the output warns |
+| entry | pi itself loads `models.json` (the tool runs `pi --list-models`, which sends no model request) and, for one model, lists it with its limits. pi runs in a throwaway folder that holds a copy of `models.json`, your API keys from `auth.json` and `models-store.json`, so it cannot write into your agent folder, and it has no OAuth credential to refresh. Without `pi` on PATH, the tool's own rules are used and the output warns |
 | api | `api` is one pi ships with. Any other value only warns, because an extension can provide it |
 | key | a key resolves, from `auth.json` or the provider's `apiKey`. A key that is configured but does not resolve fails. No key at all only warns |
 | endpoint | the host answers and `GET {baseUrl}/models` returns a model list. A provider with no model list gets the checks above and a note |
 | models | the key is accepted, and the endpoint lists the model. For a whole provider, it warns with the models in the file that the endpoint does not list |
 
-- When the endpoint also answers without a key, the output warns that a 200 does not prove the key works. The tool sends one request without credentials to find this out.
-- It prints which check failed and why. It never prints a key.
+- When the endpoint also answers with no credentials at all, the output warns that a 200 does not prove the key works. The tool sends one request with no key and no provider headers to find this out.
+- A redirect is never followed, because it could carry your credentials to another host. The check fails and says the endpoint redirects.
+- A key or header value that is not valid in an HTTP header, for example a `!command` that prints a warning line before the key, fails the check without sending anything.
+- It prints which check failed and why. It never prints a key, and error texts have every key and header value replaced with `***`.
 - The exit code is `0` when nothing failed (warnings do not fail) and `1` otherwise.
 - Probe cannot prove that `compat` or the thinking settings are right, because that needs a real request. pi's schema accepts unknown keys there, so a misspelled `compat` key passes. The help text says so.
 
@@ -130,7 +134,7 @@ Settings: none.
 - `disable --all` removes the setting at once.
 - The commands do not check a pattern against pi's matching rules. A pattern that matches nothing is accepted.
 
-The `settings.json` file gets the same backup, safe write and `undo` as F6. A settings file that does not exist yet is created by the first change, and that first change makes no backup. `undo --settings` reverses the last change to `settings.json`, and `show --settings` prints its model keys.
+The `settings.json` file gets the same backup, safe write and `undo` as F6. It is the one in the folder that `models.json` is named in, which is where pi reads it, even when `models.json` is a symlink. A settings file that does not exist yet is created by the first change, which leaves a marker backup, so `undo --settings` removes the file again. A setting of the wrong shape, for example an `enabledModels` that is not a list, is refused and left alone. `undo --settings` reverses the last change to `settings.json`, and `show --settings` prints its model keys.
 
 Settings: none. `--settings-file <path>` points the commands at another settings file, such as a project's `.pi/settings.json`.
 
@@ -149,7 +153,7 @@ Commands set which model pi starts with and how hard it thinks, in `settings.jso
 - A model that is not in `models.json` is still set, with a warning and a suggestion, because it can be a built-in pi model.
 - A command that would change nothing says so and writes nothing.
 - The last `--unset` of a map removes the whole setting.
-- The same backup, safe write and `undo --settings` as F9 apply. These commands do not change display or cache settings.
+- The same backup, safe write, `undo --settings` and wrong-shape refusal as F9 apply. These commands do not change display or cache settings.
 
 Settings: none.
 
