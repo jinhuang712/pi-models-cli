@@ -1,14 +1,14 @@
 import { execFile } from "node:child_process";
-import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { type Entry, validateEntry } from "./fields.ts";
 import type { ModelRef } from "./model-ops.ts";
 import { getProvider, modelsOf } from "./model-ops.ts";
-import type { Json } from "./store.ts";
+import { type Json, readJsonQuietly } from "./store.ts";
 import { didYouMean } from "./suggest.ts";
-import { type ParsedList, buildHeaders, parseModelList, resolveKeyDetailed } from "./sync.ts";
+import { type ParsedList, buildHeaders, getNoRedirect, invalidHeader, parseModelList, redact, resolveKeyDetailed } from "./sync.ts";
 
 const run = promisify(execFile);
 
@@ -49,18 +49,26 @@ interface PiLoad {
 	rows: PiRow[];
 }
 
-/** Ask pi itself to load models.json. `pi --list-models` sends no model request. */
-async function askPi(configPath: string, env: NodeJS.ProcessEnv, piBin: string): Promise<PiLoad> {
-	let dir = dirname(configPath);
-	let temp: string | undefined;
-	if (basename(configPath) !== "models.json") {
-		temp = mkdtempSync(join(tmpdir(), "pi-models-probe-"));
-		copyFileSync(configPath, join(temp, "models.json"));
-		dir = temp;
-	}
+/**
+ * Ask pi itself to load models.json. `pi --list-models` sends no model request.
+ * pi runs in a throwaway agent directory, so it cannot write into yours: it creates files such as
+ * auth.json and models-store.json where it runs. Only API keys are copied there, never OAuth
+ * credentials, so pi has nothing to refresh over the network.
+ */
+async function askPi(configPath: string, agentDir: string, env: NodeJS.ProcessEnv, piBin: string): Promise<PiLoad> {
+	const temp = mkdtempSync(join(tmpdir(), "pi-models-probe-"));
 	try {
+		copyFileSync(configPath, join(temp, "models.json"));
+		const authPath = join(agentDir, "auth.json");
+		const auth = readJsonQuietly(authPath);
+		if (auth !== undefined) {
+			const keysOnly = Object.fromEntries(Object.entries(auth).filter(([, v]) => typeof v === "object" && v !== null && (v as Json).type === "api_key"));
+			writeFileSync(join(temp, "auth.json"), JSON.stringify(keysOnly), { mode: 0o600 });
+		}
+		if (existsSync(join(agentDir, "models-store.json"))) copyFileSync(join(agentDir, "models-store.json"), join(temp, "models-store.json"));
 		const { stdout, stderr } = await run(piBin, ["--list-models"], {
-			env: { ...env, PI_CODING_AGENT_DIR: dir },
+			env: { ...env, PI_CODING_AGENT_DIR: temp },
+			cwd: temp,
 			timeout: 60_000,
 			maxBuffer: 32 * 1024 * 1024,
 		}).catch((error: NodeJS.ErrnoException & { stdout?: string; stderr?: string }) => {
@@ -83,7 +91,7 @@ async function askPi(configPath: string, env: NodeJS.ProcessEnv, piBin: string):
 		if ((error as NodeJS.ErrnoException).code === "ENOENT") return { available: false, errors: [], rows: [] };
 		throw error;
 	} finally {
-		if (temp) rmSync(temp, { recursive: true, force: true });
+		rmSync(temp, { recursive: true, force: true });
 	}
 }
 
@@ -98,8 +106,9 @@ async function getModels(baseUrl: string, headers: Record<string, string>): Prom
 	const attempts: Attempt[] = [];
 	for (const url of [`${baseUrl}/models`, `${baseUrl}/v1/models`]) {
 		try {
-			const response = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
+			const response = await getNoRedirect(url, headers);
 			const attempt: Attempt = { url, status: response.status };
+			if (response.status >= 300 && response.status < 400) attempt.error = `HTTP ${response.status} redirect, not followed so no credentials leave this host`;
 			if (response.status === 200) {
 				const parsed = parseModelList(await response.json().catch(() => undefined));
 				if (parsed) attempt.parsed = parsed;
@@ -107,7 +116,8 @@ async function getModels(baseUrl: string, headers: Record<string, string>): Prom
 			attempts.push(attempt);
 			if (attempt.parsed) break;
 		} catch (error) {
-			attempts.push({ url, error: error instanceof Error ? (error.cause instanceof Error ? error.cause.message : error.message) : String(error) });
+			const text = error instanceof Error ? (error.cause instanceof Error ? error.cause.message : error.message) : String(error);
+			attempts.push({ url, error: redact(text, headers) });
 		}
 	}
 	return attempts;
@@ -115,6 +125,8 @@ async function getModels(baseUrl: string, headers: Record<string, string>): Prom
 
 export interface ProbeOptions {
 	configPath: string;
+	/** The folder holding models.json as the user named it (not where a symlink points). */
+	agentDir: string;
 	config: Json;
 	auth: Json | undefined;
 	env: NodeJS.ProcessEnv;
@@ -147,7 +159,7 @@ export async function probe(options: ProbeOptions): Promise<Check[]> {
 
 	// 1. Entry: pi's own loader, else our own rules.
 	const problems = probed.flatMap((m) => validateEntry(m).map((p) => `${target.provider}/${String(m.id)}: ${p}`));
-	const loaded = await askPi(options.configPath, env, options.piBin ?? "pi");
+	const loaded = await askPi(options.configPath, options.agentDir, env, options.piBin ?? "pi");
 	if (problems.length > 0) {
 		add("entry", "fail", problems.join("; "));
 	} else if (!loaded.available) {
@@ -190,8 +202,17 @@ export async function probe(options: ProbeOptions): Promise<Check[]> {
 		return checks;
 	}
 	const headers = await buildHeaders(provider, target.provider, auth, env, true);
+	const badHeader = invalidHeader(headers);
+	if (badHeader !== undefined) {
+		add("endpoint", "fail", `the ${badHeader} header value cannot be sent: it has line breaks or non-ASCII characters (a !command that prints more than the key?)`);
+		return checks;
+	}
 	const attempts = await getModels(baseUrl, headers);
-	const answered = attempts.filter((a) => a.status !== undefined);
+	const answered = attempts.filter((a) => a.status !== undefined && !(a.status >= 300 && a.status < 400));
+	if (answered.length === 0 && attempts.some((a) => a.status !== undefined)) {
+		add("endpoint", "fail", `the endpoint redirects instead of answering (${attempts.map((a) => a.error ?? `HTTP ${a.status}`).join("; ")}); set baseUrl to the final address`);
+		return checks;
+	}
 	if (answered.length === 0) {
 		add("endpoint", "fail", `${baseUrl} did not answer: ${attempts.map((a) => a.error).join("; ")}`);
 		return checks;
@@ -212,7 +233,7 @@ export async function probe(options: ProbeOptions): Promise<Check[]> {
 	if (key.key !== undefined) {
 		const bare = await getModels(baseUrl, await buildHeaders(provider, target.provider, auth, env, false));
 		if (bare.find((a) => a.parsed)) {
-			add("key", "warn", "the endpoint lists models without a key, so a 200 does not prove the key works");
+			add("key", "warn", "the endpoint lists models with no credentials at all, so a 200 does not prove the key works");
 		}
 	}
 

@@ -18,7 +18,7 @@ import {
 	updateModel,
 	withModels,
 } from "./model-ops.ts";
-import { type Json, type Loaded, commit, listBackups, loadConfig, loadSettings, readJsonQuietly, resolveConfigPath, undoLast } from "./store.ts";
+import { type Json, type Loaded, commit, listBackups, loadConfig, loadSettings, namedAgentDir, readJsonQuietly, resolveConfigPath, undoLast } from "./store.ts";
 import { BUDGET_LEVELS, checkLevel, disableModels, enableModels, selectionOf, setBudgets, setDefault, setModelThinking } from "./settings-ops.ts";
 import { fetchModelList } from "./sync.ts";
 import { probe as runProbe, parseTarget } from "./probe.ts";
@@ -77,7 +77,7 @@ function finish(loaded: Loaded, outcome: Outcome, common: Common, extraLines: st
 /** settings.json next to models.json, unless --settings names another file. */
 function settingsPath(common: Common, ctx: Context): string {
 	if (common.settings !== undefined) return resolveConfigPath(common.settings, ctx.env);
-	return resolveConfigPath(join(dirname(resolveConfigPath(common.config, ctx.env)), "settings.json"), ctx.env);
+	return resolveConfigPath(join(namedAgentDir(common.config, ctx.env), "settings.json"), ctx.env);
 }
 
 function modelsQuietly(common: Common, ctx: Context): Json | undefined {
@@ -140,7 +140,7 @@ export function remove(positionals: string[], common: Common, ctx: Context): Rep
 	if (outcome.changes.length === 0) {
 		throw new FailError(outcome.warnings.join("; ") || "nothing to remove");
 	}
-	const settings = readJsonQuietly(join(dirname(loaded.path), "settings.json"));
+	const settings = readJsonQuietly(settingsPath(common, ctx));
 	for (const ref of refs) {
 		if (!outcome.changes.some((c) => c.target === refText(ref))) continue;
 		const where = settingsReferences(settings, ref);
@@ -156,7 +156,7 @@ export async function sync(positionals: string[], values: Values, common: Common
 	const copyFrom = typeof values["copy-from"] === "string" ? values["copy-from"] : undefined;
 	const prune = values.prune === true;
 	const loaded = open(common, ctx);
-	const auth = readJsonQuietly(join(dirname(loaded.path), "auth.json"));
+	const auth = readJsonQuietly(join(namedAgentDir(common.config, ctx.env), "auth.json"));
 	const names = all
 		? Object.entries(loaded.config.providers as Record<string, Json>)
 				.filter(([, p]) => typeof p.baseUrl === "string" && Array.isArray(p.models))
@@ -235,6 +235,7 @@ function settingsLoaded(common: Common, ctx: Context): Loaded {
 
 export function enable(positionals: string[], common: Common, ctx: Context): Report {
 	if (positionals.length === 0) throw new UsageError("enable takes one or more model patterns, for example sonnet or opencode-go/*");
+	if (positionals.some((p) => p.trim() === "")) throw new UsageError("a model pattern must not be empty");
 	const loaded = settingsLoaded(common, ctx);
 	return finish(loaded, enableModels(loaded.config, positionals), common);
 }
@@ -273,7 +274,9 @@ export function budgets(positionals: string[], values: Values, common: Common, c
 	for (const level of BUDGET_LEVELS) {
 		const text = values[level];
 		if (typeof text !== "string") continue;
-		if (!/^\d+$/.test(text)) throw new UsageError(`--${level} must be a whole number of tokens, got '${text}'`);
+		if (!/^\d+$/.test(text) || !Number.isSafeInteger(Number(text))) {
+			throw new UsageError(`--${level} must be a whole number of tokens that is not absurdly large, got '${text}'`);
+		}
 		set[level] = Number(text);
 	}
 	const unset = Array.isArray(values.unset) ? (values.unset as string[]) : [];
@@ -289,10 +292,11 @@ export async function probe(positionals: string[], common: Common, ctx: Context)
 	const [target, ...rest] = positionals;
 	if (target === undefined || rest.length > 0) throw new UsageError("probe takes one argument: <provider> or <provider>/<model>");
 	const loaded = open(common, ctx);
-	const auth = readJsonQuietly(join(dirname(loaded.path), "auth.json"));
+	const auth = readJsonQuietly(join(namedAgentDir(common.config, ctx.env), "auth.json"));
 	const piBin = ctx.env.PI_MODELS_PI_BIN;
 	const checks = await runProbe({
 		configPath: loaded.path,
+		agentDir: namedAgentDir(common.config, ctx.env),
 		config: loaded.config,
 		auth,
 		env: ctx.env,
@@ -322,6 +326,9 @@ export function undo(values: Values, common: Common, ctx: Context): Report {
 	if (common.dryRun) {
 		return { lines: [`would restore ${newest}`, "dry run: nothing written"], json: { ok: true, dryRun: true, wouldRestore: newest } };
 	}
-	const { restored } = undoLast(path);
-	return { lines: [`restored ${path} from ${restored}`], json: { ok: true, dryRun: false, restored } };
+	const { restored, removed } = undoLast(path);
+	return {
+		lines: [removed ? `removed ${path}: it did not exist before the change` : `restored ${path} from ${restored}`],
+		json: { ok: true, dryRun: false, restored, removed },
+	};
 }

@@ -1,4 +1,4 @@
-import { UsageError } from "./errors.ts";
+import { FailError, UsageError } from "./errors.ts";
 import { type ModelRef, type Outcome, modelIds, refText } from "./model-ops.ts";
 import type { Json } from "./store.ts";
 import { closest, didYouMean } from "./suggest.ts";
@@ -14,6 +14,26 @@ export function checkLevel(text: string, flag = "thinking level"): string {
 }
 
 const q = (v: unknown) => JSON.stringify(v);
+
+/** enabledModels as a list of strings, or undefined when unset. A value of the wrong shape is refused, not overwritten. */
+function enabledOf(settings: Json): string[] | undefined {
+	const v = settings.enabledModels;
+	if (v === undefined) return undefined;
+	if (!Array.isArray(v) || v.some((p) => typeof p !== "string")) {
+		throw new FailError("enabledModels in settings.json is not a list of strings; fix it by hand before using pi-models");
+	}
+	return v as string[];
+}
+
+/** An object-valued setting, or an empty object when unset. A value of the wrong shape is refused. */
+function objectOf(settings: Json, key: string): Json {
+	const v = settings[key];
+	if (v === undefined) return {};
+	if (typeof v !== "object" || v === null || Array.isArray(v)) {
+		throw new FailError(`${key} in settings.json is not an object; fix it by hand before using pi-models`);
+	}
+	return { ...(v as Json) };
+}
 
 function outcome(settings: Json, lines: string[], warnings: string[] = []): Outcome {
 	return {
@@ -39,7 +59,7 @@ function unknownWarning(models: Json | undefined, ref: ModelRef): string[] {
 }
 
 export function enableModels(settings: Json, patterns: string[]): Outcome {
-	const current = Array.isArray(settings.enabledModels) ? (settings.enabledModels as string[]) : undefined;
+	const current = enabledOf(settings);
 	const next = [...(current ?? [])];
 	const lines: string[] = [];
 	const warnings: string[] = [];
@@ -58,7 +78,7 @@ export function enableModels(settings: Json, patterns: string[]): Outcome {
 }
 
 export function disableModels(settings: Json, patterns: string[], all: boolean): Outcome {
-	const current = Array.isArray(settings.enabledModels) ? (settings.enabledModels as string[]) : undefined;
+	const current = enabledOf(settings);
 	if (all) {
 		if (current === undefined) return outcome(settings, [], ["enabledModels is not set; pi already offers every model"]);
 		const { enabledModels: _removed, ...rest } = settings;
@@ -108,7 +128,7 @@ export function setDefault(settings: Json, ref: ModelRef | undefined, thinking: 
 
 export function setModelThinking(settings: Json, ref: ModelRef, level: string | undefined, models: Json | undefined): Outcome {
 	const key = refText(ref);
-	const levels = typeof settings.modelThinkingLevels === "object" && settings.modelThinkingLevels !== null ? { ...(settings.modelThinkingLevels as Json) } : {};
+	const levels = objectOf(settings, "modelThinkingLevels");
 	if (level === undefined) {
 		if (!(key in levels)) return outcome(settings, [], [`${key} has no thinking level set`]);
 		delete levels[key];
@@ -122,7 +142,7 @@ export function setModelThinking(settings: Json, ref: ModelRef, level: string | 
 }
 
 export function setBudgets(settings: Json, values: Record<string, number>, unset: string[]): Outcome {
-	const budgets = typeof settings.thinkingBudgets === "object" && settings.thinkingBudgets !== null ? { ...(settings.thinkingBudgets as Json) } : {};
+	const budgets = objectOf(settings, "thinkingBudgets");
 	const lines: string[] = [];
 	const warnings: string[] = [];
 	for (const [level, value] of Object.entries(values)) {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { chmodSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
@@ -8,7 +8,7 @@ import { after, before, test } from "node:test";
 import { cli, sandbox, write, type Sandbox } from "./helpers.ts";
 
 // G6: probe costs nothing. A real local server logs every request it receives.
-const requests: { method: string; url: string; auth?: string; body: string }[] = [];
+const requests: { method: string; url: string; auth?: string; body: string; headers: IncomingMessage["headers"] }[] = [];
 let mode: "ok" | "401" | "404" | "open" = "ok";
 let served: unknown = { data: [{ id: "good" }, { id: "other" }] };
 let base = "";
@@ -16,7 +16,7 @@ const server = createServer((req: IncomingMessage, res: ServerResponse) => {
 	let body = "";
 	req.on("data", (c) => (body += c));
 	req.on("end", () => {
-		requests.push({ method: req.method ?? "", url: req.url ?? "", ...(req.headers.authorization ? { auth: req.headers.authorization } : {}), body });
+		requests.push({ method: req.method ?? "", url: req.url ?? "", headers: req.headers, ...(req.headers.authorization ? { auth: req.headers.authorization } : {}), body });
 		const isModels = req.url === "/v1/models";
 		const keyed = req.headers.authorization === "Bearer secret";
 		const status = !isModels ? 404 : mode === "404" ? 404 : mode === "401" ? 401 : mode === "ok" && !keyed ? 401 : 200;
@@ -86,7 +86,7 @@ test("an endpoint that answers without a key gets a warning, not a pass for the 
 	mode = "open";
 	const r = await cli(setup(), "probe", "p/good");
 	assert.equal(r.code, 0);
-	assert.match(r.out, /! key {6}the endpoint lists models without a key/);
+	assert.match(r.out, /! key {6}the endpoint lists models with no credentials at all/);
 	assert.equal(requests.some((q) => q.auth === undefined), true, "an unauthenticated request was sent for the comparison");
 });
 
@@ -180,4 +180,89 @@ test("with the real pi: a bad value only pi knows about is caught", { skip: !rea
 	assert.equal(r.code, 1, r.out);
 	assert.match(r.out, /pi rejects models.json/);
 	assert.match(r.out, /inputLimits/);
+});
+
+// Credentials must stay on the host they belong to, and out of the output.
+test("a redirect is not followed, so no credential reaches another host (probe and sync)", async () => {
+	let hits = 0;
+	const other = createServer((_req, res) => {
+		hits++;
+		res.writeHead(200).end("{}");
+	});
+	await new Promise<void>((resolve) => other.listen(0, "127.0.0.1", resolve));
+	const target = `http://127.0.0.1:${(other.address() as AddressInfo).port}/models`;
+	const redirecting = createServer((_req, res) => {
+		res.writeHead(307, { location: target }).end();
+	});
+	await new Promise<void>((resolve) => redirecting.listen(0, "127.0.0.1", resolve));
+	try {
+		const url = `http://127.0.0.1:${(redirecting.address() as AddressInfo).port}/v1`;
+		const sb = sandbox(JSON.stringify(config({ baseUrl: url, api: "anthropic-messages", headers: { "api-key": "HDR-SECRET-456" }, apiKey: "KEY-SECRET-123" })));
+		fakePi(sb, TABLE(["good"]));
+		const probed = await cli(sb, "probe", "p/good");
+		assert.equal(probed.code, 1);
+		assert.match(probed.out, /redirects instead of answering/);
+		const synced = await cli(sb, "sync", "p");
+		assert.equal(synced.code, 1);
+		assert.match(synced.err, /redirect \(not followed/);
+		assert.equal(hits, 0, "the other host received a request");
+		assert.doesNotMatch(probed.out + synced.err, /SECRET/);
+	} finally {
+		other.close();
+		redirecting.close();
+	}
+});
+
+test("a key that is not a valid header value is never echoed (probe, probe --json and sync)", async () => {
+	const sb = setup({ apiKey: "!printf 'warning: token cache stale\\nsk-SECRET-789'" });
+	const human = await cli(sb, "probe", "p/good");
+	const json = await cli(sb, "probe", "p/good", "--json");
+	const synced = await cli(sb, "sync", "p");
+	for (const r of [human, json, synced]) {
+		assert.doesNotMatch(r.out + r.err, /sk-SECRET-789|token cache stale/);
+		assert.notEqual(r.code, 0);
+	}
+	assert.match(human.out, /✗ endpoint .*header value cannot be sent/);
+	assert.equal(requests.length, 0, "nothing was sent");
+});
+
+test("redact removes every header value and the bare key from an error text", async () => {
+	const { redact } = await import("../src/sync.ts");
+	const text = redact("bad value Bearer sk-abc-1234 and x-1234567 and sk-abc-1234", { accept: "application/json", authorization: "Bearer sk-abc-1234", "x-api-key": "x-1234567" });
+	assert.equal(text, "bad value *** and *** and ***");
+});
+
+test("pi runs in a throwaway folder: your agent folder is untouched and only API keys are copied", async () => {
+	mode = "ok";
+	const sb = setup();
+	write(sb, "auth.json", { p: { type: "api_key", key: "secret" }, anthropic: { type: "oauth", access: "OAUTH-TOKEN", refresh: "OAUTH-REFRESH" } });
+	const script = join(sb.dir, "recording-pi.sh");
+	const rec = join(sb.dir, "..", `rec-${process.pid}`);
+	mkdirSync(rec, { recursive: true });
+	writeFileSync(
+		script,
+		`#!/bin/sh\necho "$PI_CODING_AGENT_DIR" > ${rec}/dir\npwd > ${rec}/cwd\ncat "$PI_CODING_AGENT_DIR/auth.json" > ${rec}/auth 2>/dev/null\ntouch "$PI_CODING_AGENT_DIR/models-store.json" "$PI_CODING_AGENT_DIR/new-file"\ncat <<'EOF'\n${TABLE(["good"])}\nEOF\n`,
+	);
+	chmodSync(script, 0o755);
+	sb.env.PI_MODELS_PI_BIN = script;
+	const before2 = readdirSync(sb.dir).sort();
+	const r = await cli(sb, "probe", "p/good");
+	assert.equal(r.code, 0, r.out + r.err);
+	const used = readFileSync(join(rec, "dir"), "utf8").trim();
+	assert.notEqual(used, sb.dir);
+	assert.equal(readFileSync(join(rec, "cwd"), "utf8").trim().replace(/^\/private/, ""), used.replace(/^\/private/, ""));
+	assert.equal(existsSync(used), false, "the throwaway folder is removed");
+	assert.deepEqual(readdirSync(sb.dir).sort(), before2, "no file appeared in your agent folder");
+	assert.deepEqual(JSON.parse(readFileSync(join(rec, "auth"), "utf8")), { p: { type: "api_key", key: "secret" } });
+	rmSync(rec, { recursive: true, force: true });
+});
+
+test("the comparison request without a key carries no provider headers either", async () => {
+	mode = "open";
+	const sb = setup({ headers: { "x-routing-secret": "abc123" } });
+	await cli(sb, "probe", "p/good");
+	const bare = requests.filter((q) => q.auth === undefined);
+	assert.ok(bare.length > 0);
+	for (const q of bare) assert.equal(q.headers["x-routing-secret"], undefined, "a provider header went out on the credential-free request");
+	assert.ok(requests.some((q) => q.auth === "Bearer secret" && q.headers["x-routing-secret"] === "abc123"), "the normal request still carries the provider header");
 });

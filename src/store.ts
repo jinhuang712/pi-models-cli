@@ -1,6 +1,7 @@
 import {
 	chmodSync,
 	existsSync,
+	lstatSync,
 	mkdirSync,
 	readdirSync,
 	readFileSync,
@@ -24,10 +25,31 @@ export function agentDir(env: NodeJS.ProcessEnv = process.env): string {
 	return dir ? dir : join(homedir(), ".pi", "agent");
 }
 
+/** models.json as the user named it, before any symlink is followed. */
+export function namedConfigPath(option: string | undefined, env: NodeJS.ProcessEnv = process.env): string {
+	return option ?? join(agentDir(env), "models.json");
+}
+
+/** The folder of models.json as named. pi reads settings.json and auth.json from here, even when models.json is a symlink. */
+export function namedAgentDir(option: string | undefined, env: NodeJS.ProcessEnv = process.env): string {
+	return dirname(namedConfigPath(option, env));
+}
+
 export function resolveConfigPath(option: string | undefined, env: NodeJS.ProcessEnv = process.env): string {
-	const path = option ?? join(agentDir(env), "models.json");
-	// A symlinked file is edited where it really lives, so the rename below never replaces the link.
-	return existsSync(path) ? realpathSync(path) : path;
+	const path = namedConfigPath(option, env);
+	if (existsSync(path)) return realpathSync(path); // a symlinked file is edited where it lives, so the rename never replaces the link
+	if (lstatIfAny(path)?.isSymbolicLink()) {
+		throw new FailError(`${path} is a symbolic link to a file that does not exist; fix the link first`);
+	}
+	return path;
+}
+
+function lstatIfAny(path: string) {
+	try {
+		return lstatSync(path);
+	} catch {
+		return undefined;
+	}
 }
 
 export interface Loaded {
@@ -114,7 +136,7 @@ export function listBackups(path: string): string[] {
 	const dir = backupDir(path);
 	if (!existsSync(dir)) return [];
 	return readdirSync(dir)
-		.filter((f) => f.endsWith(".json"))
+		.filter((f) => f.endsWith(".json") || f.endsWith(".absent"))
 		.sort()
 		.map((f) => join(dir, f));
 }
@@ -135,7 +157,7 @@ export function writeAtomic(path: string, text: string): void {
 }
 
 export interface Written {
-	/** The backup file, or "" when the file did not exist yet. */
+	/** The backup file, or a marker file when the file did not exist yet. */
 	backup: string;
 }
 
@@ -147,9 +169,8 @@ export function commit(loaded: Loaded, next: Json, now: Date = new Date()): Writ
 	if (changed) {
 		throw new FailError(`${loaded.path} changed while this command ran; nothing was written. Run the command again`);
 	}
-	if (!loaded.exists) {
-		writeAtomic(loaded.path, render(loaded, next));
-		return { backup: "" };
+	if (!existsSync(dirname(loaded.path))) {
+		throw new FailError(`the folder ${dirname(loaded.path)} does not exist`);
 	}
 	mkdirSync(dir, { recursive: true, mode: 0o700 });
 	// A sequence number after the time keeps names unique and sorted when two backups share a millisecond.
@@ -158,18 +179,32 @@ export function commit(loaded: Loaded, next: Json, now: Date = new Date()): Writ
 		backup = join(dir, `${stamp(now)}-${String(n).padStart(3, "0")}.json`);
 		if (!existsSync(backup)) break;
 	}
-	writeFileSync(backup, loaded.raw, { mode: 0o600 });
+	if (!loaded.exists) {
+		// The file did not exist. The marker lets `undo` put things back by removing what we create.
+		backup = backup.replace(/\.json$/, ".absent");
+		writeFileSync(backup, "", { mode: 0o600 });
+	} else {
+		writeFileSync(backup, loaded.raw, { mode: 0o600 });
+	}
 	writeAtomic(loaded.path, render(loaded, next));
 	for (const old of listBackups(loaded.path).slice(0, -BACKUPS_KEPT)) unlinkSync(old);
 	return { backup };
 }
 
-/** Restore the newest backup and drop it, so a second undo steps back one more change. */
-export function undoLast(path: string): { restored: string } {
+/**
+ * Restore the newest backup and drop it, so a second undo steps back one more change.
+ * A marker backup means the file did not exist before; restoring it removes the file.
+ */
+export function undoLast(path: string): { restored: string; removed: boolean } {
 	const backups = listBackups(path);
 	const newest = backups.at(-1);
 	if (newest === undefined) throw new FailError(`no backups to restore in ${backupDir(path)}`);
-	writeAtomic(path, readFileSync(newest, "utf8"));
+	const removed = newest.endsWith(".absent");
+	if (removed) {
+		if (existsSync(path)) unlinkSync(path);
+	} else {
+		writeAtomic(path, readFileSync(newest, "utf8"));
+	}
 	unlinkSync(newest);
-	return { restored: newest };
+	return { restored: newest, removed };
 }

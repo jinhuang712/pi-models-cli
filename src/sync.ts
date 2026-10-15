@@ -66,10 +66,14 @@ export async function resolveKey(provider: Json, name: string, auth: Json | unde
 	return (await resolveKeyDetailed(provider, name, auth, env)).key;
 }
 
-/** Request headers for the provider's /models endpoint. `withKey: false` leaves out every credential. */
+/**
+ * Request headers for the provider's /models endpoint. `withKey: false` sends nothing but `accept`: no key and
+ * no provider headers, because a provider header can carry a credential too.
+ */
 export async function buildHeaders(provider: Json, name: string, auth: Json | undefined, env: NodeJS.ProcessEnv, withKey = true): Promise<Record<string, string>> {
 	const headers: Record<string, string> = { accept: "application/json" };
-	const key = withKey ? await resolveKey(provider, name, auth, env) : undefined;
+	if (!withKey) return headers;
+	const key = await resolveKey(provider, name, auth, env);
 	if (key !== undefined) {
 		headers.authorization = `Bearer ${key}`;
 		if (provider.api === "anthropic-messages") {
@@ -86,6 +90,31 @@ export async function buildHeaders(provider: Json, name: string, auth: Json | un
 		}
 	}
 	return headers;
+}
+
+/** Replace every secret in `text` with ***, so an error message never echoes a key. */
+export function redact(text: string, headers: Record<string, string>): string {
+	let out = text;
+	for (const [name, value] of Object.entries(headers)) {
+		if (name === "accept" || value.length < 4) continue;
+		for (const secret of new Set([value, value.replace(/^Bearer /, "")])) {
+			if (secret.length >= 4) out = out.split(secret).join("***");
+		}
+	}
+	return out;
+}
+
+/** The name of a header whose value cannot be sent, or undefined. Never returns the value. */
+export function invalidHeader(headers: Record<string, string>): string | undefined {
+	for (const [name, value] of Object.entries(headers)) {
+		if (!/^[\t\x20-\x7e]*$/.test(value)) return name;
+	}
+	return undefined;
+}
+
+/** One GET that never follows a redirect: a redirect could carry the credentials to another host. */
+export async function getNoRedirect(url: string, headers: Record<string, string>): Promise<Response> {
+	return fetch(url, { headers, redirect: "manual", signal: AbortSignal.timeout(15_000) });
 }
 
 export interface Listed {
@@ -166,10 +195,16 @@ export async function fetchModelList(provider: Json, name: string, auth: Json | 
 	if (baseUrl === undefined) return { ok: false, reason: "no baseUrl" };
 	const headers = await buildHeaders(provider, name, auth, env);
 	const reasons: string[] = [];
+	const bad = invalidHeader(headers);
+	if (bad !== undefined) {
+		return { ok: false, reason: `the ${bad} header value is not valid in an HTTP header (a key or header value that has line breaks or non-ASCII characters?)` };
+	}
 	for (const url of [`${baseUrl}/models`, `${baseUrl}/v1/models`]) {
 		try {
-			const response = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
-			if (response.status === 200) {
+			const response = await getNoRedirect(url, headers);
+			if (response.status >= 300 && response.status < 400) {
+				reasons.push(`${url}: HTTP ${response.status} redirect (not followed, so no credentials leave this host)`);
+			} else if (response.status === 200) {
 				const parsed = parseModelList(await response.json().catch(() => undefined));
 				if (parsed !== undefined) return { ok: true, url, ...parsed };
 				reasons.push(`${url}: answered 200 but not with a model list`);
@@ -177,7 +212,7 @@ export async function fetchModelList(provider: Json, name: string, auth: Json | 
 				reasons.push(`${url}: HTTP ${response.status}`);
 			}
 		} catch (error) {
-			reasons.push(`${url}: ${error instanceof Error ? error.message : String(error)}`);
+			reasons.push(`${url}: ${redact(error instanceof Error ? error.message : String(error), headers)}`);
 		}
 	}
 	return { ok: false, reason: reasons.join("; ") };

@@ -182,7 +182,9 @@ export function settingsReferences(settings: Json | undefined, ref: ModelRef): s
 	} else if (settings.defaultModel === full) {
 		found.push("defaultModel");
 	}
-	if (Array.isArray(settings.enabledModels) && settings.enabledModels.some((p) => p === full || p === ref.model)) {
+	// A pattern can end in :<level>, as in provider/model:high.
+	const bare = (p: unknown) => (typeof p === "string" ? p.replace(/:(off|minimal|low|medium|high|xhigh|max)$/, "") : p);
+	if (Array.isArray(settings.enabledModels) && settings.enabledModels.some((p) => bare(p) === full || bare(p) === ref.model)) {
 		found.push("enabledModels");
 	}
 	const levels = settings.modelThinkingLevels;

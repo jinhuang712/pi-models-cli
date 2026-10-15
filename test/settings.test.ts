@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { backupDir, listBackups, loadSettings, commit } from "../src/store.ts";
@@ -20,6 +20,7 @@ function setup(settings: object | null = { ...OTHER }) {
 function onlyKeys(before: Record<string, unknown>, after: Record<string, unknown>, keys: string[]) {
 	const strip = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k)));
 	assert.deepEqual(strip(after), strip(before));
+	assert.deepEqual(Object.keys(strip(after)), Object.keys(strip(before)), "the order of untouched keys changed");
 }
 
 test("show --settings prints only the model-selection keys", async () => {
@@ -127,14 +128,21 @@ test("budgets sets and unsets token budgets; the last unset removes the key", as
 	assert.equal((await cli(sb, "budgets", "--unset", "max")).code, 2);
 });
 
-test("a missing settings.json is created, with no backup; later changes make backups", async () => {
+test("a missing settings.json is created, and undo removes it again", async () => {
 	const { sb, path } = setup(null);
 	const r = await cli(sb, "default", "p/glm-5");
 	assert.equal(r.code, 0, r.err);
 	assert.deepEqual(readJson(path), { defaultProvider: "p", defaultModel: "glm-5" });
-	assert.equal(existsSync(backupDir(path)), false);
-	await cli(sb, "default", "p/kimi");
 	assert.equal(listBackups(path).length, 1);
+	assert.match(listBackups(path)[0] as string, /\.absent$/);
+	await cli(sb, "default", "p/kimi");
+	assert.equal(listBackups(path).length, 2);
+	await cli(sb, "undo", "--settings");
+	assert.equal(readJson(path).defaultModel, "glm-5");
+	const last = await cli(sb, "undo", "--settings");
+	assert.match(last.out, /did not exist before the change/);
+	assert.equal(existsSync(path), false);
+	assert.equal(listBackups(path).length, 0);
 });
 
 test("undo --settings restores settings.json byte for byte, and leaves models.json alone", async () => {
@@ -200,4 +208,68 @@ test("help for every settings command", async () => {
 		assert.equal(r.code, 0, c);
 		assert.match(r.out, new RegExp(`^pi-models ${c} —`), c);
 	}
+});
+
+test("settings commands use the folder models.json is named in, even when it is a symlink", async () => {
+	const sb = sandbox(MODELS);
+	const real = join(sb.dir, "elsewhere");
+	mkdirSync(real);
+	renameSync(sb.models, join(real, "models.json"));
+	symlinkSync(join(real, "models.json"), sb.models);
+	writeFileSync(join(sb.dir, "settings.json"), `${JSON.stringify({ enabledModels: ["a"] })}\n`);
+	const r = await cli(sb, "enable", "b");
+	assert.equal(r.code, 0, r.err);
+	assert.deepEqual(readJson(join(sb.dir, "settings.json")).enabledModels, ["a", "b"]);
+	assert.equal(existsSync(join(real, "settings.json")), false, "no settings.json appears beside the link target");
+	assert.match((await cli(sb, "show", "--settings")).out, /enabledModels: \["a","b"\]/);
+	writeFileSync(join(sb.dir, "settings.json"), JSON.stringify({ defaultProvider: "p", defaultModel: "glm-5" }));
+	assert.match((await cli(sb, "remove", "p/glm-5")).out, /still set in settings.json: defaultModel/);
+});
+
+test("a dangling settings.json symlink is refused, not replaced", async () => {
+	const { sb, path } = setup(null);
+	symlinkSync(join(sb.dir, "nowhere.json"), path);
+	const r = await cli(sb, "enable", "a");
+	assert.equal(r.code, 1);
+	assert.match(r.err, /symbolic link to a file that does not exist/);
+	assert.equal(lstatSync(path).isSymbolicLink(), true);
+	assert.equal(existsSync(join(sb.dir, "nowhere.json")), false);
+});
+
+test("--settings-file in a folder that does not exist is a clear error", async () => {
+	const { sb } = setup();
+	const r = await cli(sb, "default", "p/glm-5", "--settings-file", join(sb.dir, "no", "such", "settings.json"));
+	assert.equal(r.code, 1);
+	assert.match(r.err, /the folder .* does not exist/);
+	assert.doesNotMatch(r.err, /ENOENT/);
+});
+
+test("a setting of the wrong shape is refused and left alone", async () => {
+	for (const [bad, args] of [
+		[{ enabledModels: "sonnet" }, ["enable", "b"]],
+		[{ enabledModels: "sonnet" }, ["disable", "--all"]],
+		[{ enabledModels: ["a", 3] }, ["disable", "a"]],
+		[{ modelThinkingLevels: ["high"] }, ["thinking", "p/glm-5", "low"]],
+		[{ thinkingBudgets: 5 }, ["budgets", "--low", "1"]],
+	] as [object, string[]][]) {
+		const { sb, path } = setup(bad);
+		const before = read(path);
+		const r = await cli(sb, ...args);
+		assert.equal(r.code, 1, `${JSON.stringify(bad)} ${args.join(" ")}`);
+		assert.match(r.err, /fix it by hand/);
+		assert.equal(read(path), before);
+	}
+});
+
+test("empty patterns and absurd budgets are usage errors", async () => {
+	const { sb } = setup();
+	assert.equal((await cli(sb, "enable", "")).code, 2);
+	assert.equal((await cli(sb, "enable", "  ")).code, 2);
+	assert.equal((await cli(sb, "budgets", "--low", "99999999999999999999")).code, 2);
+});
+
+test("remove sees a pattern that ends in a thinking level", async () => {
+	const { sb } = setup({ enabledModels: ["p/glm-5:high", "kimi:low"] });
+	assert.match((await cli(sb, "remove", "p/glm-5")).out, /still set in settings.json: enabledModels/);
+	assert.match((await cli(sb, "remove", "p/kimi")).out, /still set in settings.json: enabledModels/);
 });
