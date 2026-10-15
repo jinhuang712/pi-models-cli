@@ -1,4 +1,4 @@
-<!-- what-we-build: drafted 2026-10-15 -->
+<!-- what-we-build: approved 2026-10-15 -->
 # Goals
 
 Each goal is a check with a number. Tests run in this repo against a copy of the author's real `~/.pi/agent/models.json`. Agent goals are measured by running a real session. Nothing is measured yet, because nothing is built.

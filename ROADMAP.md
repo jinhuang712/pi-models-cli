@@ -22,7 +22,7 @@ Where the work stands, as of 2026-10-15. Behavior lives in FEATURES.md and the c
 | `sync --dry-run` run against the real `opencode-go` and `opencode-zen` endpoints | ✅ |
 | Independent review of the code and tests: 9 defects found, all fixed, 5 weak tests replaced and checked by mutation (2026-10-15) | ✅ |
 | G1: time one real release-day update, by session and by CLI | ⬜ |
-| G5: run the scripted mistakes with `openai-codex/gpt-6-luna` (built into pi, already logged in) | ⬜ |
+| G5: run the scripted mistakes with `openai-codex/gpt-6-luna`: 30 of 30 fixed in one retry, 10 mistakes × 3 trials, thinking `medium`, 2026-10-15 (`eval/g5/`). Run by the author of the CLI, so GOALS.md keeps G5 open until you accept it | ✅ |
 | Use it on a real model release | ⬜ |
 
 ## M2 — Probe
