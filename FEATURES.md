@@ -3,7 +3,7 @@
 
 ✅ built · 🚧 built with a gap · ⬜ planned
 
-Nothing is built yet. The commands below are the contract. F1 to F7 edit `models.json`. F8 to F10 are phase 2, and their command names can still change.
+F1 to F8 are built. F9 and F10 are phase 2, and their command names can still change. F1 to F7 edit `models.json`; F8 only reads.
 
 All commands act on pi's `models.json` in the agent directory (`~/.pi/agent`, or the directory in `PI_CODING_AGENT_DIR`). Options for every command:
 
@@ -16,7 +16,7 @@ All commands act on pi's `models.json` in the agent directory (`~/.pi/agent`, or
 
 Exit codes: `0` done, `1` failed with nothing written, `2` wrong usage.
 
-## F1 — Show ⬜
+## F1 — Show ✅
 
 Read the model list without opening the file.
 
@@ -28,7 +28,7 @@ Read the model list without opening the file.
 
 Settings: none.
 
-## F2 — Add a model ⬜
+## F2 — Add a model ✅
 
 `pi-models add <provider>/<model> [fields]` adds a model to a provider that already exists in `models.json`.
 
@@ -41,7 +41,7 @@ Settings: none.
 
 Settings: none.
 
-## F3 — Update a model ⬜
+## F3 — Update a model ✅
 
 `pi-models update <provider>/<model> [fields]` changes the fields you pass and nothing else.
 
@@ -51,7 +51,7 @@ Settings: none.
 
 Settings: none.
 
-## F4 — Remove models ⬜
+## F4 — Remove models ✅
 
 `pi-models remove <provider>/<model>...` removes the listed models and changes nothing else in the provider.
 
@@ -60,7 +60,7 @@ Settings: none.
 
 Settings: none.
 
-## F5 — Sync a provider's models ⬜
+## F5 — Sync a provider's models ✅
 
 `pi-models sync <provider>` adds the models that the provider's endpoint lists and your file does not. `pi-models sync --all` does this for every provider that has a base URL and a model list.
 
@@ -75,7 +75,7 @@ Settings: none.
 
 Settings: none.
 
-## F6 — Safe writes ⬜
+## F6 — Safe writes ✅
 
 Every command that changes a file saves a copy first and can be undone.
 
@@ -89,7 +89,7 @@ Every command that changes a file saves a copy first and can be undone.
 
 Settings: none. The count of 20 is fixed, because a setting would hand you a decision that does not matter.
 
-## F7 — Output for agents ⬜
+## F7 — Output for agents ✅
 
 A model can call every command correctly, and fix a wrong call in one retry.
 
@@ -100,18 +100,22 @@ A model can call every command correctly, and fix a wrong call in one retry.
 
 Settings: none.
 
-## F8 — Probe an entry, free of cost ⬜
+## F8 — Probe an entry, free of cost ✅
 
-`pi-models probe <provider>[/<model>]` checks that an entry will work and sends no billed request. It runs these checks in order and stops at the first failure with the reason:
+`pi-models probe <provider>[/<model>]` checks that an entry will work and sends no billed request. The only requests are GETs of the provider's model list. It runs these checks in order and stops at the first failure:
 
-1. The entry passes pi's schema.
-2. The API key resolves: the env var is set, the `!command` exits `0`, or `auth.json` holds a key.
-3. The host answers.
-4. `GET {baseUrl}/models` returns `200` with the key.
-5. The model ID is in that list.
-6. The config is consistent: `api` fits the endpoint, and `compat` and `thinkingLevelMap` hold only keys pi knows.
+| Check | Passes when |
+|---|---|
+| entry | pi itself loads `models.json` (the tool runs `pi --list-models`, which sends no model request) and, for one model, lists it with its limits. Without `pi` on PATH, the tool's own rules are used and the output warns |
+| api | `api` is one pi ships with. Any other value only warns, because an extension can provide it |
+| key | a key resolves, from `auth.json` or the provider's `apiKey`. A key that is configured but does not resolve fails. No key at all only warns |
+| endpoint | the host answers and `GET {baseUrl}/models` returns a model list. A provider with no model list gets the checks above and a note |
+| models | the key is accepted, and the endpoint lists the model. For a whole provider, it warns with the models in the file that the endpoint does not list |
 
-A provider with no `/models` endpoint gets checks 1 to 3 and a note. Probe cannot prove that `compat` or the thinking format is right, because that needs a real request. The help text says so.
+- When the endpoint also answers without a key, the output warns that a 200 does not prove the key works. The tool sends one request without credentials to find this out.
+- It prints which check failed and why. It never prints a key.
+- The exit code is `0` when nothing failed (warnings do not fail) and `1` otherwise.
+- Probe cannot prove that `compat` or the thinking settings are right, because that needs a real request. pi's schema accepts unknown keys there, so a misspelled `compat` key passes. The help text says so.
 
 Settings: none.
 

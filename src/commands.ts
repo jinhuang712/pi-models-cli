@@ -20,6 +20,7 @@ import {
 } from "./model-ops.ts";
 import { type Json, type Loaded, commit, listBackups, loadConfig, readJsonQuietly, resolveConfigPath, undoLast } from "./store.ts";
 import { fetchModelList } from "./sync.ts";
+import { probe as runProbe, parseTarget } from "./probe.ts";
 import { validateEntry } from "./fields.ts";
 
 export interface Context {
@@ -206,6 +207,29 @@ export async function sync(positionals: string[], values: Values, common: Common
 	const report = finish(loaded, outcome, common, lines, { skipped, needsUpdate, kept });
 	if (changes.length === 0 && skipped.length === 0 && kept.length === 0) report.lines.push("already in sync");
 	return report;
+}
+
+export async function probe(positionals: string[], common: Common, ctx: Context): Promise<Report> {
+	const [target, ...rest] = positionals;
+	if (target === undefined || rest.length > 0) throw new UsageError("probe takes one argument: <provider> or <provider>/<model>");
+	const loaded = open(common, ctx);
+	const auth = readJsonQuietly(join(dirname(loaded.path), "auth.json"));
+	const piBin = ctx.env.PI_MODELS_PI_BIN;
+	const checks = await runProbe({
+		configPath: loaded.path,
+		config: loaded.config,
+		auth,
+		env: ctx.env,
+		target: parseTarget(target),
+		...(piBin ? { piBin } : {}),
+	});
+	const mark = { pass: "✓", fail: "✗", warn: "!", skip: "-" } as const;
+	const failed = checks.some((c) => c.status === "fail");
+	return {
+		lines: [...checks.map((c) => `${mark[c.status]} ${c.name.padEnd(8)} ${c.detail}`), failed ? `${target}: failed` : `${target}: ok (no billed request was sent)`],
+		json: { ok: !failed, target, checks },
+		exitCode: failed ? 1 : 0,
+	};
 }
 
 export function undo(values: Values, common: Common, ctx: Context): Report {

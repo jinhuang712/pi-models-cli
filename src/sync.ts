@@ -27,18 +27,65 @@ export async function resolveValue(value: string, env: NodeJS.ProcessEnv = proce
 	return missing || text === "" ? undefined : text;
 }
 
+export interface KeyResult {
+	key?: string;
+	/** Where the key came from, or where we looked and failed. Never holds the key itself. */
+	source?: string;
+	/** True when a key is configured somewhere, whether or not it resolved. */
+	configured: boolean;
+}
+
+function kindOf(value: string): string {
+	return value.startsWith("!") ? "command" : /\$/.test(value) ? "environment variable" : "literal";
+}
+
 /** The key pi would use: a stored api_key in auth.json first, then the provider's apiKey. */
-export async function resolveKey(provider: Json, name: string, auth: Json | undefined, env: NodeJS.ProcessEnv = process.env) {
+export async function resolveKeyDetailed(provider: Json, name: string, auth: Json | undefined, env: NodeJS.ProcessEnv = process.env): Promise<KeyResult> {
+	let configured = false;
+	let source: string | undefined;
 	const stored = auth?.[name];
 	if (typeof stored === "object" && stored !== null) {
 		const entry = stored as Json;
 		if (entry.type === "api_key" && typeof entry.key === "string") {
+			configured = true;
+			source = `auth.json (${kindOf(entry.key)})`;
 			const key = await resolveValue(entry.key, env);
-			if (key !== undefined) return key;
+			if (key !== undefined) return { key, source, configured };
 		}
 	}
-	if (typeof provider.apiKey === "string") return resolveValue(provider.apiKey, env);
-	return undefined;
+	if (typeof provider.apiKey === "string") {
+		configured = true;
+		source = `models.json apiKey (${kindOf(provider.apiKey)})`;
+		const key = await resolveValue(provider.apiKey, env);
+		if (key !== undefined) return { key, source, configured };
+	}
+	return { ...(source ? { source } : {}), configured };
+}
+
+export async function resolveKey(provider: Json, name: string, auth: Json | undefined, env: NodeJS.ProcessEnv = process.env) {
+	return (await resolveKeyDetailed(provider, name, auth, env)).key;
+}
+
+/** Request headers for the provider's /models endpoint. `withKey: false` leaves out every credential. */
+export async function buildHeaders(provider: Json, name: string, auth: Json | undefined, env: NodeJS.ProcessEnv, withKey = true): Promise<Record<string, string>> {
+	const headers: Record<string, string> = { accept: "application/json" };
+	const key = withKey ? await resolveKey(provider, name, auth, env) : undefined;
+	if (key !== undefined) {
+		headers.authorization = `Bearer ${key}`;
+		if (provider.api === "anthropic-messages") {
+			headers["x-api-key"] = key;
+			headers["anthropic-version"] = "2023-06-01";
+		}
+	}
+	const extra = provider.headers;
+	if (typeof extra === "object" && extra !== null) {
+		for (const [k, v] of Object.entries(extra as Entry)) {
+			if (typeof v !== "string") continue;
+			const resolved = await resolveValue(v, env);
+			if (resolved !== undefined) headers[k.toLowerCase()] = resolved;
+		}
+	}
+	return headers;
 }
 
 export interface Listed {
@@ -117,23 +164,7 @@ export type FetchResult = ({ ok: true; url: string } & ParsedList) | { ok: false
 export async function fetchModelList(provider: Json, name: string, auth: Json | undefined, env: NodeJS.ProcessEnv = process.env): Promise<FetchResult> {
 	const baseUrl = typeof provider.baseUrl === "string" ? provider.baseUrl.replace(/\/+$/, "") : undefined;
 	if (baseUrl === undefined) return { ok: false, reason: "no baseUrl" };
-	const headers: Record<string, string> = { accept: "application/json" };
-	const key = await resolveKey(provider, name, auth, env);
-	if (key !== undefined) {
-		headers.authorization = `Bearer ${key}`;
-		if (provider.api === "anthropic-messages") {
-			headers["x-api-key"] = key;
-			headers["anthropic-version"] = "2023-06-01";
-		}
-	}
-	const extra = provider.headers;
-	if (typeof extra === "object" && extra !== null) {
-		for (const [k, v] of Object.entries(extra as Entry)) {
-			if (typeof v !== "string") continue;
-			const resolved = await resolveValue(v, env);
-			if (resolved !== undefined) headers[k.toLowerCase()] = resolved;
-		}
-	}
+	const headers = await buildHeaders(provider, name, auth, env);
 	const reasons: string[] = [];
 	for (const url of [`${baseUrl}/models`, `${baseUrl}/v1/models`]) {
 		try {

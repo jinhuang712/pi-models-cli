@@ -30,6 +30,7 @@ $ pi-models undo
 | `update <provider>/<model>` | Changes only the fields you pass; `--unset` removes one |
 | `remove <provider>/<model>...` | Removes models, and warns if `settings.json` still uses one |
 | `sync <provider>` or `--all` | Adds the models the provider's `/models` endpoint serves; `--prune` removes the ones it no longer serves |
+| `probe <provider>[/<model>]` | Checks that an entry will work, with no billed request: pi loads it, the key resolves, the endpoint answers and lists the model |
 | `undo` | Restores the previous file; run it again to step back further |
 
 Every command takes `--dry-run`, `--json` and `--config <path>`. Run `pi-models <command> --help` for the fields and examples. Every write saves a backup to `models.bak/` first and keeps the newest 20. The full contract is in [FEATURES.md](FEATURES.md).
@@ -51,6 +52,7 @@ This builds the CLI as part of the install. It needs Node 22.18 or newer, and ha
 ```bash
 pi-models show                         # what providers do you have?
 pi-models sync <provider> --dry-run    # what does the endpoint serve that your file lacks?
+pi-models probe <provider>             # will the entries work?
 ```
 
 ## Known limits
@@ -63,7 +65,8 @@ pi-models sync <provider> --dry-run    # what does the endpoint serve that your 
 - A file with comments or trailing commas (pi accepts them) is refused, because rewriting it would drop them. A file in another layout is rewritten in 2-space layout, with a warning; the backup keeps the original.
 - `sync` reads only the first page of a paged response. It never removes models based on a list that may be partial.
 - A process killed during a write can leave a hidden `.models.json.tmp-<pid>` file next to `models.json`. The real file is untouched.
-- Not built yet: `probe` and the settings commands (model filters, defaults). See [ROADMAP.md](ROADMAP.md).
+- `probe` cannot prove that `compat` or the thinking settings are right, because that needs a real request. It also runs `pi --list-models`; without `pi` on PATH it uses its own, weaker checks.
+- Not built yet: the settings commands (model filters, defaults). See [ROADMAP.md](ROADMAP.md).
 
 ## Documents
 

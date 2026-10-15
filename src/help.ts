@@ -9,6 +9,7 @@ Commands:
   update  <provider>/<model>        Change fields on an existing model
   remove  <provider>/<model>...     Remove one or more models
   sync    <provider> | --all        Add models the provider's /models endpoint lists
+  probe   <provider>[/<model>]      Check an entry will work, without a billed request
   undo                              Restore the previous models.json
 
 Global options:
@@ -30,6 +31,7 @@ Examples:
   pi-models update opencode-go/glm-5 --maxTokens 128000
   pi-models remove opencode-go/kimi-k2.5
   pi-models sync opencode-go
+  pi-models probe opencode-go/glm-5
 
 Run \`pi-models <command> --help\` for a command's options.
 `;
@@ -145,6 +147,31 @@ Examples:
   pi-models sync opencode-go
   pi-models sync opencode-go --prune --dry-run
   pi-models sync --all
+`,
+	probe: `pi-models probe — check that an entry will work, at no cost
+
+Usage:
+  pi-models probe <provider>
+  pi-models probe <provider>/<model>
+
+Sends no billed request. The only requests are GETs of the provider's model list.
+Checks, in order; the first failure stops the run:
+  entry     pi itself loads models.json (runs \`pi --list-models\`, which sends no
+            model request). Without pi on PATH, this tool's own rules are used.
+  api       the api value is one pi ships with (a warning only)
+  key       a key resolves: auth.json, else the provider's apiKey (literal, $ENV, !command)
+  endpoint  the host answers, and GET {baseUrl}/models returns a model list
+  models    the key is accepted, and the endpoint lists the model (or, for a whole
+            provider, which models in the file it does not list)
+Exit 0 when nothing failed (warnings do not fail), 1 otherwise.
+
+What probe cannot prove: that compat or the thinking settings are right. That needs
+a real request. A 200 from an endpoint that answers without a key does not prove the
+key works; probe says so.
+
+Examples:
+  pi-models probe opencode-go
+  pi-models probe opencode-go/glm-5.3-flash --json
 `,
 	undo: `pi-models undo — restore the previous models.json
 

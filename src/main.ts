@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { type Common, type Context, type Report, add, remove, show, sync, undo, update } from "./commands.ts";
+import { type Common, type Context, type Report, add, probe, remove, show, sync, undo, update } from "./commands.ts";
 import { FailError, UsageError } from "./errors.ts";
 import { FIELD_OPTIONS } from "./fields.ts";
 import { HELP, MAIN_HELP } from "./help.ts";
@@ -22,6 +22,7 @@ const COMMAND_OPTIONS: Record<string, Spec> = {
 	update: { ...FIELD_OPTIONS, unset: { type: "string", multiple: true } },
 	remove: {},
 	sync: { all: { type: "boolean" }, prune: { type: "boolean" }, "copy-from": { type: "string" } },
+	probe: {},
 	undo: { list: { type: "boolean" } },
 };
 
@@ -47,6 +48,8 @@ async function dispatch(command: string, positionals: string[], values: Record<s
 			return remove(positionals, common, ctx);
 		case "sync":
 			return sync(positionals, values, common, ctx);
+		case "probe":
+			return probe(positionals, common, ctx);
 		default:
 			return undo(values, common, ctx);
 	}
